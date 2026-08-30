@@ -35,7 +35,8 @@ const verifySchema = z.object({
 });
 
 function signToken(user) {
-  return jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, {
+  const secret = process.env.JWT_SECRET || 'chittech_default_jwt_secret_2026';
+  return jwt.sign({ userId: user.id, role: user.role }, secret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 }

@@ -9,7 +9,8 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'chittech_default_jwt_secret_2026';
+    const payload = jwt.verify(token, secret);
     req.user = { userId: payload.userId, role: payload.role };
     next();
   } catch (err) {
