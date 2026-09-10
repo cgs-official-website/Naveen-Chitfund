@@ -35,35 +35,29 @@ A full-stack, institutional-grade digital chit-fund management platform. ChitTec
 
 ```
 .
-├── chittech-backend/
-│   └── chittech-backend/
-│       ├── src/
-│       │   ├── db.js                 # PostgreSQL connection pool & transaction manager
-│       │   ├── redis.js              # Redis cache client & auction keys
-│       │   ├── index.js              # Express app bootstrap & Socket.IO server
-│       │   ├── middleware/           # JWT verification, RBAC guard & error handler
-│       │   ├── migrations/           # PostgreSQL DDL migrations
-│       │   ├── routes/               # REST API endpoints (Admin, Auth, Auctions, etc.)
-│       │   ├── services/             # Integer-paise dividend calculation engine
-│       │   ├── sockets/              # Room-isolated real-time auction sockets
-│       │   └── utils/                # Validation & pagination helpers
-│       ├── tests/                    # Dividend engine test suite
-│       ├── docker-compose.yml        # Local PostgreSQL & Redis containers
-│       ├── package.json              # Backend dependencies & scripts
-│       └── .env.example              # Environment variables template
+├── backend/
+│   ├── src/
+│   │   ├── db.js                 # PostgreSQL connection pool & transaction manager
+│   │   ├── redis.js              # Redis cache client & auction keys
+│   │   ├── index.js              # Express app bootstrap & Socket.IO server
+│   │   ├── middleware/           # JWT verification, RBAC guard & error handler
+│   │   ├── migrations/           # PostgreSQL DDL migrations
+│   │   ├── routes/               # REST API endpoints (Admin, Auth, Auctions, etc.)
+│   │   ├── services/             # Integer-paise dividend calculation engine
+│   │   ├── sockets/              # Room-isolated real-time auction sockets
+│   │   └── utils/                # Validation & pagination helpers
+│   ├── tests/                    # Dividend engine & API test suites
+│   ├── package.json              # Backend dependencies & scripts
+│   └── .env.example              # Environment variables template
 │
-└── chittech-frontend/
-    └── chittech_frontend/
-        ├── lib/
-        │   ├── core/                 # Theme, network client (Dio), secure storage
-        │   ├── models/               # Domain models (ChitGroup, Auction, User, etc.)
-        │   ├── providers/            # Riverpod state notifiers & controllers
-        │   ├── router/               # GoRouter RBAC routing & zero-leakage shells
-        │   ├── screens/              # 29 UI views (Auth, User Shell, Admin Shell)
-        │   ├── services/             # KYC and backend integration services
-        │   └── widgets/              # Cards, status badges, state views, buttons
-        ├── pubspec.yaml              # Flutter dependencies & metadata
-        └── README.md                 # Frontend documentation
+└── frontend/
+    ├── src/
+    │   ├── core/                 # Theme tokens, typography, responsive breakpoints, Card, BidDial
+    │   ├── features/             # Auth/eKYC, Dashboard, Chits, Live Auction, Payments, Surety, Foreman
+    │   ├── navigation/           # Phone bottom-tabs & tablet navigation rail
+    │   └── store/                # Zustand global application state store
+    ├── package.json              # React Native / Expo dependencies & scripts
+    └── app.json                  # Cross-platform tablet & mobile metadata
 ```
 
 ---
@@ -74,7 +68,7 @@ A full-stack, institutional-grade digital chit-fund management platform. ChitTec
 
 ```bash
 # Navigate to backend folder
-cd chittech-backend/chittech-backend
+cd backend
 
 # Copy environment file
 cp .env.example .env
@@ -96,16 +90,17 @@ The backend server will start on `http://localhost:4000`.
 
 ```bash
 # Navigate to frontend folder
-cd chittech-frontend/chittech_frontend
+cd frontend
 
-# Fetch Flutter dependencies
-flutter pub get
+# Install dependencies
+npm install
 
-# Run on Google Chrome (Web)
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:4000
+# Start on Web
+npm run web
 
-# Or run as Windows Desktop application
-flutter run -d windows --dart-define=API_BASE_URL=http://localhost:4000
+# Or run on Android / iOS
+npm run android
+npm run ios
 ```
 
 ---

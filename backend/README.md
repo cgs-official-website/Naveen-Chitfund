@@ -6,7 +6,6 @@ Digital chit-fund platform backend — Node.js/Express, PostgreSQL, Redis, Socke
 
 ```bash
 cp .env.example .env          # fill in real values (JWT secret, Razorpay keys, etc.)
-docker-compose up -d          # starts local Postgres + Redis
 npm install
 npm run migrate               # applies SQL migrations
 npm run seed                  # creates 1 admin + 2 chit groups + 5 subscribers
