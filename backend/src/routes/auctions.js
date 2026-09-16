@@ -1,19 +1,20 @@
-const express = require('express');
-const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
-const { query, withTransaction } = require('../db');
-const { redis, auctionKey, auctionBidsKey } = require('../redis');
-const { requireAuth, requireRole } = require('../middleware/auth');
-const { asyncHandler, ApiError } = require('../middleware/errorHandler');
-const { validateBody, getPagination, paginatedResponse } = require('../utils/validate');
-const { calculateDividend, toRupees } = require('../services/dividend');
-const { broadcastBid, broadcastClose } = require('../sockets/auctionSocket');
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+import { query, withTransaction, logAuditEvent } from '../db.js';
+import { redis, auctionKey, auctionBidsKey } from '../redis.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
+import { validateBody, getPagination, paginatedResponse } from '../utils/validate.js';
+import { calculateDividend, toRupees } from '../services/dividend.js';
+import { broadcastBid, broadcastClose } from '../sockets/auctionSocket.js';
+import { toPaise } from '../utils/money.js';
 
 const router = express.Router();
 
 const bidLimiter = rateLimit({
   windowMs: 10 * 1000,
-  max: 5, // max 5 bid attempts per 10s per IP — prevents bid spamming
+  max: process.env.NODE_ENV === 'test' ? 1000 : 5, // max 5 bid attempts per 10s per IP — prevents bid spamming
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many bids, slow down' },
@@ -26,7 +27,7 @@ const scheduleSchema = z.object({
 });
 
 const bidSchema = z.object({
-  bidPct: z.number().min(0).max(50), // discount as % of chit value; sane upper bound
+  bidPct: z.number().min(0).max(40), // discount as % of chit value; capped at 40% per § 14 Chit Funds Act
 });
 
 // POST /api/v1/chit-groups/:groupId/auctions  (admin) — schedule
@@ -101,9 +102,21 @@ router.post(
     );
     if (!rows.length) throw new ApiError(400, 'Auction not found or not in SCHEDULED state');
 
+    const groupRes = await query(
+      'SELECT foreman_commission_pct FROM chit_groups WHERE id = $1',
+      [rows[0].chit_group_id]
+    );
+    const minCommission = groupRes.rows.length ? Number(groupRes.rows[0].foreman_commission_pct) : 5;
+
     await redis.set(
       auctionKey(req.params.id),
-      JSON.stringify({ lowestBidPct: null, bidderSubscriptionId: null, updatedAt: Date.now() })
+      JSON.stringify({
+        lowestBidPct: null,
+        highestBidPct: null,
+        minBidPct: minCommission,
+        bidderSubscriptionId: null,
+        updatedAt: Date.now(),
+      })
     );
     await redis.del(auctionBidsKey(req.params.id));
 
@@ -112,8 +125,8 @@ router.post(
 );
 
 // POST /api/v1/auctions/:id/bid  (auth'd user, own subscription only)
-// A chit auction is a reverse auction: the LOWEST bid % (largest discount subscriber
-// is willing to forgo) wins, since bidders are competing for early payout.
+// A chit auction is a reverse auction: subscribers compete for early capital by offering
+// a higher discount percentage (forgoing more prize money, generating higher dividend for the group).
 router.post(
   '/auctions/:id/bid',
   requireAuth,
@@ -123,7 +136,13 @@ router.post(
     const auctionId = req.params.id;
     const { bidPct } = req.body;
 
-    const auctionRes = await query('SELECT * FROM chit_auctions WHERE id = $1', [auctionId]);
+    const auctionRes = await query(
+      `SELECT ca.*, cg.foreman_commission_pct, cg.chit_amount
+       FROM chit_auctions ca
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       WHERE ca.id = $1`,
+      [auctionId]
+    );
     if (!auctionRes.rows.length) throw new ApiError(404, 'Auction not found');
     const auction = auctionRes.rows[0];
     if (auction.status !== 'LIVE') throw new ApiError(400, 'Auction is not live');
@@ -134,19 +153,45 @@ router.post(
     );
     if (!subRes.rows.length) throw new ApiError(403, 'You are not a subscriber of this chit group');
     const subscription = subRes.rows[0];
-    if (subscription.subscriber_status === 'PS') {
-      throw new ApiError(400, 'Already-prized subscribers cannot bid again');
+    if (subscription.subscriber_status === 'PS' || subscription.subscriber_status === 'SB') {
+      throw new ApiError(400, 'Already prized or successful bidders cannot bid again');
+    }
+
+    const minAllowed = Number(auction.foreman_commission_pct || 5);
+    if (Number(bidPct) < minAllowed) {
+      throw new ApiError(
+        400,
+        `Bid discount cannot be less than minimum foreman commission (${minAllowed}%)`
+      );
+    }
+    if (Number(bidPct) > 40) {
+      throw new ApiError(
+        400,
+        'Bid discount cannot exceed statutory maximum of 40% (Chit Funds Act § 14)'
+      );
     }
 
     const rawState = await redis.get(auctionKey(auctionId));
-    const state = rawState ? JSON.parse(rawState) : { lowestBidPct: null };
+    const state = rawState ? JSON.parse(rawState) : { lowestBidPct: null, highestBidPct: null };
 
-    if (state.lowestBidPct !== null && Number(bidPct) >= Number(state.lowestBidPct)) {
-      throw new ApiError(400, `Bid must be lower than current lowest bid (${state.lowestBidPct}%)`);
+    const currentDiscount =
+      state.highestBidPct !== undefined && state.highestBidPct !== null
+        ? Number(state.highestBidPct)
+        : state.lowestBidPct !== undefined && state.lowestBidPct !== null
+        ? Number(state.lowestBidPct)
+        : null;
+
+    if (currentDiscount !== null && Number(bidPct) <= currentDiscount) {
+      throw new ApiError(
+        400,
+        `Bid must strictly exceed current discount bid (${currentDiscount}%)`
+      );
     }
 
     const newState = {
-      lowestBidPct: bidPct,
+      lowestBidPct: bidPct, // backwards-compatible alias
+      highestBidPct: bidPct,
+      currentBidPct: bidPct,
       bidderSubscriptionId: subscription.id,
       bidderTicketNumber: subscription.ticket_number,
       updatedAt: Date.now(),
@@ -154,16 +199,33 @@ router.post(
     await redis.set(auctionKey(auctionId), JSON.stringify(newState));
     await redis.lpush(
       auctionBidsKey(auctionId),
-      JSON.stringify({ subscriptionId: subscription.id, ticketNumber: subscription.ticket_number, bidPct, at: Date.now() })
+      JSON.stringify({
+        subscriptionId: subscription.id,
+        ticketNumber: subscription.ticket_number,
+        bidPct,
+        at: Date.now(),
+      })
     );
-    await redis.ltrim(auctionBidsKey(auctionId), 0, 49); // keep last 50 for recent-bids feed
+    await redis.ltrim(auctionBidsKey(auctionId), 0, 49);
 
-    // Audit trail — persisted immediately, independent of auction close.
+    // Audit trail — persisted immediately in DB
     await query(
       `INSERT INTO auction_bids (auction_id, subscription_id, bid_pct, ip_address) VALUES ($1, $2, $3, $4)`,
       [auctionId, subscription.id, bidPct, req.ip]
     );
-    console.log(`[AUDIT] bid placed: auction=${auctionId} subscription=${subscription.id} bidPct=${bidPct} ip=${req.ip}`);
+
+    await logAuditEvent(null, {
+      eventType: 'BID_PLACED',
+      actorId: req.user.userId,
+      entityType: 'auction_bids',
+      entityId: auctionId,
+      metadata: {
+        bidPct,
+        ticketNumber: subscription.ticket_number,
+        subscriptionId: subscription.id,
+      },
+      ipAddress: req.ip,
+    });
 
     const io = req.app.get('io');
     broadcastBid(io, auctionId, {
@@ -192,7 +254,8 @@ router.post(
 
     const rawState = await redis.get(auctionKey(auctionId));
     const state = rawState ? JSON.parse(rawState) : null;
-    if (!state || state.lowestBidPct === null) {
+    const winningPct = state?.highestBidPct ?? state?.lowestBidPct ?? null;
+    if (!state || winningPct === null) {
       throw new ApiError(400, 'No bids placed — cannot close auction without a winner');
     }
 
@@ -200,21 +263,30 @@ router.post(
     const group = groupRes.rows[0];
 
     const result = await withTransaction(async (client) => {
-      // Persist auction result
+      // 1. Persist auction result
       await client.query(
         `UPDATE chit_auctions
          SET status = 'COMPLETED', winning_bid_pct = $1, winning_subscription_id = $2, closed_at = now()
          WHERE id = $3`,
-        [state.lowestBidPct, state.bidderSubscriptionId, auctionId]
+        [winningPct, state.bidderSubscriptionId, auctionId]
       );
 
-      // Mark winner as prized subscriber (PS)
+      // 2. Mark winner as Successful Bidder (SB) under § 31 Chit Funds Act 1982
+      // Note: Subscriber transitions to PS only after surety approval & prize disbursal.
       await client.query(
-        `UPDATE subscriptions SET subscriber_status = 'PS', prized_month = $1 WHERE id = $2`,
+        `UPDATE subscriptions SET subscriber_status = 'SB', prized_month = $1 WHERE id = $2`,
         [auction.month_number, state.bidderSubscriptionId]
       );
 
-      // Pull ALL active subscriptions for this group, post-update, for dividend calc
+      // 3. Initialize pending surety verification record
+      await client.query(
+        `INSERT INTO sureties (subscription_id, auction_id, surety_type, status)
+         VALUES ($1, $2, 'CO_GUARANTORS', 'PENDING')
+         ON CONFLICT DO NOTHING`,
+        [state.bidderSubscriptionId, auctionId]
+      );
+
+      // 4. Pull active subscriptions for dividend calc
       const subsRes = await client.query(
         `SELECT id AS subscription_id, ticket_number, subscriber_status
          FROM subscriptions WHERE chit_group_id = $1`,
@@ -228,50 +300,70 @@ router.post(
 
       const dividend = calculateDividend({
         chitAmount: group.chit_amount,
-        winningBidPct: state.lowestBidPct,
+        winningBidPct: winningPct,
         foremanCommissionPct: group.foreman_commission_pct,
         policy: group.dividend_distribution_policy,
         subscriptions,
         winningSubscriptionId: state.bidderSubscriptionId,
       });
 
-      // Commission ledger entry
+      // 5. Commission ledger entry with amount_paise
       await client.query(
-        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, auction_id)
-         VALUES ($1, NULL, 'COMMISSION', $2, $3)`,
-        [auction.chit_group_id, toRupees(dividend.commissionPaise), auctionId]
+        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
+         VALUES ($1, NULL, 'COMMISSION', $2, $3, $4)`,
+        [
+          auction.chit_group_id,
+          toRupees(dividend.commissionPaise),
+          dividend.commissionPaise,
+          auctionId,
+        ]
       );
 
-      // Prize payout ledger entry (chit amount minus their own discount, simplified as chit_amount - bid_discount)
-      const chitAmountPaise = Math.round(Number(group.chit_amount) * 100);
-      const bidDiscountPaise = Math.round((chitAmountPaise * Number(state.lowestBidPct)) / 100);
+      // 6. Prize payout ledger entry with amount_paise
+      const chitAmountPaise = toPaise(Number(group.chit_amount));
+      const bidDiscountPaise = Math.round((chitAmountPaise * Number(winningPct)) / 100);
       const prizeAmountPaise = chitAmountPaise - bidDiscountPaise;
       await client.query(
-        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, auction_id)
-         VALUES ($1, $2, 'PRIZE_PAYOUT', $3, $4)`,
-        [auction.chit_group_id, state.bidderSubscriptionId, toRupees(prizeAmountPaise), auctionId]
+        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
+         VALUES ($1, $2, 'PRIZE_PAYOUT', $3, $4, $5)`,
+        [
+          auction.chit_group_id,
+          state.bidderSubscriptionId,
+          toRupees(prizeAmountPaise),
+          prizeAmountPaise,
+          auctionId,
+        ]
       );
 
-      // Dividend ledger entries — one per eligible subscriber
+      // 7. Dividend ledger entries with amount_paise — one per eligible subscriber
       for (const p of dividend.perSubscriber) {
         await client.query(
-          `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, auction_id)
-           VALUES ($1, $2, 'DIVIDEND', $3, $4)`,
-          [auction.chit_group_id, p.subscriptionId, toRupees(p.amountPaise), auctionId]
+          `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
+           VALUES ($1, $2, 'DIVIDEND', $3, $4, $5)`,
+          [auction.chit_group_id, p.subscriptionId, toRupees(p.amountPaise), p.amountPaise, auctionId]
         );
       }
 
-      console.log(
-        `[AUDIT] auction closed: auction=${auctionId} winner=${state.bidderSubscriptionId} bidPct=${state.lowestBidPct} ` +
-          `distributed=${toRupees(dividend.totalDistributedPaise)} commission=${toRupees(dividend.commissionPaise)}`
-      );
+      // 8. Log audit event
+      await logAuditEvent(client, {
+        eventType: 'AUCTION_CLOSED',
+        actorId: req.user.userId,
+        entityType: 'chit_auctions',
+        entityId: auctionId,
+        metadata: {
+          winning_bid_pct: winningPct,
+          winner_subscription_id: state.bidderSubscriptionId,
+          prize_amount_paise: prizeAmountPaise,
+          total_distributed_paise: dividend.totalDistributedPaise,
+        },
+      });
 
       return { dividend, prizeAmount: toRupees(prizeAmountPaise) };
     });
 
     const io = req.app.get('io');
     broadcastClose(io, auctionId, {
-      winningBidPct: state.lowestBidPct,
+      winningBidPct: winningPct,
       winningSubscriptionId: state.bidderSubscriptionId,
       winningTicketNumber: state.bidderTicketNumber,
     });
@@ -280,7 +372,7 @@ router.post(
       success: true,
       data: {
         auctionId,
-        winningBidPct: state.lowestBidPct,
+        winningBidPct: winningPct,
         winningSubscriptionId: state.bidderSubscriptionId,
         prizeAmount: result.prizeAmount,
         dividendPerSubscriber: result.dividend.perSubscriber.map((p) => ({
@@ -292,4 +384,4 @@ router.post(
   })
 );
 
-module.exports = router;
+export default router;

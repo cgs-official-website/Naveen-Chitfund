@@ -1,4 +1,4 @@
-const { calculateDividend, toRupees } = require('../src/services/dividend');
+import { calculateDividend, toRupees } from '../src/services/dividend.js';
 
 function makeSubs(n, prizedTicket = null) {
   return Array.from({ length: n }, (_, i) => ({

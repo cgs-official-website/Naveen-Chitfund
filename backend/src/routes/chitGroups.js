@@ -1,9 +1,10 @@
-const express = require('express');
-const { z } = require('zod');
-const { query } = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
-const { asyncHandler, ApiError } = require('../middleware/errorHandler');
-const { validateBody, getPagination, paginatedResponse } = require('../utils/validate');
+import express from 'express';
+import { z } from 'zod';
+import { query } from '../db.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
+import { validateBody, getPagination, paginatedResponse } from '../utils/validate.js';
+import { toPaise } from '../utils/money.js';
 
 const router = express.Router();
 
@@ -23,12 +24,18 @@ router.get(
     const { page, limit, offset } = getPagination(req);
     const { status } = req.query;
 
-    const where = status ? 'WHERE status = $1' : '';
+    const where = status ? 'WHERE cg.status = $1' : '';
     const params = status ? [status] : [];
 
-    const countRes = await query(`SELECT COUNT(*) FROM chit_groups ${where}`, params);
+    const countRes = await query(`SELECT COUNT(*) FROM chit_groups cg ${where}`, params);
     const rowsRes = await query(
-      `SELECT cg.*, COUNT(s.id) AS subscriber_count
+      `SELECT cg.id, cg.name, cg.chit_amount::float AS chit_amount, cg.chit_amount_paise,
+              cg.duration_months, cg.foreman_commission_pct::float AS foreman_commission_pct,
+              cg.status, cg.registrar_state_code, cg.dividend_distribution_policy,
+              cg.created_at,
+              COUNT(s.id)::int AS subscriber_count,
+              GREATEST(cg.duration_months - COUNT(s.id)::int, 0) AS vacant_slots,
+              ROUND(cg.chit_amount / cg.duration_months, 2)::float AS installment_amount
        FROM chit_groups cg
        LEFT JOIN subscriptions s ON s.chit_group_id = cg.id
        ${where}
@@ -49,11 +56,28 @@ router.get(
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { rows } = await query('SELECT * FROM chit_groups WHERE id = $1', [req.params.id]);
+    const { rows } = await query(
+      `SELECT cg.id, cg.name, cg.chit_amount::float AS chit_amount, cg.chit_amount_paise,
+              cg.duration_months, cg.foreman_commission_pct::float AS foreman_commission_pct,
+              cg.status, cg.registrar_state_code, cg.dividend_distribution_policy,
+              cg.created_at,
+              COUNT(s.id)::int AS subscriber_count,
+              GREATEST(cg.duration_months - COUNT(s.id)::int, 0) AS vacant_slots,
+              ROUND(cg.chit_amount / cg.duration_months, 2)::float AS installment_amount
+       FROM chit_groups cg
+       LEFT JOIN subscriptions s ON s.chit_group_id = cg.id
+       WHERE cg.id = $1
+       GROUP BY cg.id`,
+      [req.params.id]
+    );
     if (!rows.length) throw new ApiError(404, 'Chit group not found');
 
     const subs = await query(
-      `SELECT id, ticket_number, subscriber_status FROM subscriptions WHERE chit_group_id = $1 ORDER BY ticket_number`,
+      `SELECT s.id, s.ticket_number, s.subscriber_status, u.full_name AS subscriber_name
+       FROM subscriptions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.chit_group_id = $1
+       ORDER BY s.ticket_number`,
       [req.params.id]
     );
 
@@ -69,13 +93,15 @@ router.post(
   validateBody(createGroupSchema),
   asyncHandler(async (req, res) => {
     const b = req.body;
+    const chitAmountPaise = toPaise(b.chitAmount);
     const { rows } = await query(
       `INSERT INTO chit_groups
-         (name, chit_amount, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'OPEN') RETURNING *`,
+         (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN') RETURNING *`,
       [
         b.name,
         b.chitAmount,
+        chitAmountPaise,
         b.durationMonths,
         b.foremanCommissionPct,
         b.registrarStateCode || null,
@@ -101,4 +127,4 @@ router.post(
   })
 );
 
-module.exports = router;
+export default router;

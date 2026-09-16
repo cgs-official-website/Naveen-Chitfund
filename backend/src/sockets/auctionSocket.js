@@ -1,28 +1,38 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 /**
  * Sets up Socket.IO auction rooms.
- * Clients connect and emit `join_auction` with { auctionId, token } to join a room.
- * Server emits to room `auction:<id>`:
- *   - 'bid_placed'      { auctionId, bidPct, subscriptionId, ticketNumber, bidAt }
- *   - 'auction_closed'  { auctionId, winningBidPct, winningTicketNumber }
+ * Supports both event naming conventions:
+ *   Incoming: 'join_auction' / 'joinAuction' / 'auction:join'
+ *             'leave_auction' / 'leaveAuction' / 'auction:leave'
+ *   Outgoing: 'bid_placed' AND 'auction:bid'
+ *             'auction_closed' AND 'auction:closed'
  */
 function attachAuctionSocket(io) {
   io.on('connection', (socket) => {
-    socket.on('join_auction', ({ auctionId, token }) => {
+    const handleJoin = ({ auctionId, token }) => {
       try {
-        if (token) jwt.verify(token, process.env.JWT_SECRET); // just validates, doesn't block anon viewers
+        if (token) jwt.verify(token, process.env.JWT_SECRET);
       } catch (err) {
-        // ignore invalid token — read-only viewing is allowed; bidding is enforced via REST + auth
+        // read-only viewing allowed
       }
       if (!auctionId) return;
       socket.join(roomName(auctionId));
       socket.emit('joined_auction', { auctionId });
-    });
+      socket.emit('auction:joined', { auctionId });
+    };
 
-    socket.on('leave_auction', ({ auctionId }) => {
+    const handleLeave = ({ auctionId }) => {
       if (auctionId) socket.leave(roomName(auctionId));
-    });
+    };
+
+    socket.on('join_auction', handleJoin);
+    socket.on('joinAuction', handleJoin);
+    socket.on('auction:join', handleJoin);
+
+    socket.on('leave_auction', handleLeave);
+    socket.on('leaveAuction', handleLeave);
+    socket.on('auction:leave', handleLeave);
   });
 }
 
@@ -31,11 +41,18 @@ function roomName(auctionId) {
 }
 
 function broadcastBid(io, auctionId, payload) {
-  io.to(roomName(auctionId)).emit('bid_placed', { auctionId, ...payload });
+  const room = roomName(auctionId);
+  const data = { auctionId, ...payload };
+  io.to(room).emit('bid_placed', data);
+  io.to(room).emit('auction:bid', data);
 }
 
 function broadcastClose(io, auctionId, payload) {
-  io.to(roomName(auctionId)).emit('auction_closed', { auctionId, ...payload });
+  const room = roomName(auctionId);
+  const data = { auctionId, ...payload };
+  io.to(room).emit('auction_closed', data);
+  io.to(room).emit('auction:closed', data);
 }
 
-module.exports = { attachAuctionSocket, broadcastBid, broadcastClose, roomName };
+export { attachAuctionSocket, broadcastBid, broadcastClose, roomName };
+

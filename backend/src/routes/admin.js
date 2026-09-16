@@ -1,8 +1,9 @@
-const express = require('express');
-const { query } = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-const { getPagination, paginatedResponse } = require('../utils/validate');
+import express from 'express';
+import { z } from 'zod';
+import { query, logAuditEvent } from '../db.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
+import { getPagination, paginatedResponse, validateBody } from '../utils/validate.js';
 
 const router = express.Router();
 
@@ -150,4 +151,89 @@ router.get(
   })
 );
 
-module.exports = router;
+// GET /api/v1/admin/kyc/pending — list pending KYC applicants
+router.get(
+  '/kyc/pending',
+  asyncHandler(async (req, res) => {
+    const { rows } = await query(
+      `SELECT id, phone, full_name, role, kyc_status, pan_number, aadhaar_vault_ref, created_at
+       FROM users
+       WHERE kyc_status = 'PENDING'
+       ORDER BY created_at ASC`
+    );
+    res.json({ success: true, data: rows });
+  })
+);
+
+// POST /api/v1/admin/kyc/:id/review — approve or reject user KYC
+const reviewKycSchema = z.object({
+  status: z.enum(['VERIFIED', 'REJECTED']),
+  reason: z.string().optional(),
+});
+
+router.post(
+  '/kyc/:id/review',
+  validateBody(reviewKycSchema),
+  asyncHandler(async (req, res) => {
+    const { status, reason } = req.body;
+    const { rows } = await query(
+      `UPDATE users
+       SET kyc_status = $1, updated_at = now()
+       WHERE id = $2
+       RETURNING id, phone, full_name, role, kyc_status`,
+      [status, req.params.id]
+    );
+    if (!rows.length) throw new ApiError(404, 'User not found');
+
+    await logAuditEvent(null, {
+      eventType: 'KYC_REVIEWED',
+      actorId: req.user.userId,
+      entityType: 'users',
+      entityId: req.params.id,
+      afterState: rows[0],
+      metadata: { status, reason },
+    });
+
+    res.json({ success: true, data: rows[0] });
+  })
+);
+
+// POST /api/v1/admin/auctions/schedule — schedule a new auction session
+const scheduleAuctionSchema = z.object({
+  chitGroupId: z.string().uuid(),
+  monthNumber: z.number().int().positive(),
+  scheduledAt: z.string(),
+});
+
+router.post(
+  '/auctions/schedule',
+  validateBody(scheduleAuctionSchema),
+  asyncHandler(async (req, res) => {
+    const { chitGroupId, monthNumber, scheduledAt } = req.body;
+
+    const groupRes = await query(`SELECT * FROM chit_groups WHERE id = $1`, [chitGroupId]);
+    if (!groupRes.rows.length) throw new ApiError(404, 'Chit group not found');
+
+    const { rows } = await query(
+      `INSERT INTO chit_auctions (chit_group_id, month_number, scheduled_at, status)
+       VALUES ($1, $2, $3, 'SCHEDULED')
+       ON CONFLICT (chit_group_id, month_number) DO UPDATE
+       SET scheduled_at = EXCLUDED.scheduled_at, status = 'SCHEDULED'
+       RETURNING *`,
+      [chitGroupId, monthNumber, scheduledAt]
+    );
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_SCHEDULED',
+      actorId: req.user.userId,
+      entityType: 'chit_auctions',
+      entityId: rows[0].id,
+      afterState: rows[0],
+      metadata: { chitGroupId, monthNumber, scheduledAt },
+    });
+
+    res.status(201).json({ success: true, data: rows[0] });
+  })
+);
+
+export default router;

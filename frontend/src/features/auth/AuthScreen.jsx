@@ -1,439 +1,559 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   ScrollView,
-  Switch,
   TouchableOpacity,
+  Image,
+  Alert,
+  Switch,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
+import { Input } from '../../core/components/Input';
 import { useAppStore } from '../../store/useAppStore';
+import { apiClient, setAuthToken } from '../../core/networking/apiClient';
 import {
-  ShieldCheck,
   Smartphone,
-  CreditCard,
-  Camera,
+  KeyRound,
+  User,
+  ShieldCheck,
   CheckCircle2,
-  Lock,
-  Globe,
-  FileCheck,
+  Building,
+  UserCheck,
+  ArrowRight,
+  RefreshCw,
+  Edit3,
 } from 'lucide-react-native';
 
 export const AuthScreen = ({ onComplete }) => {
   const { theme, typography } = useTheme();
-  const { login, updateDPDPConsent, dpdpConsents } = useAppStore();
+  const insets = useSafeAreaInsets();
+  const { login, updateDPDPConsent } = useAppStore();
 
-  const [step, setStep] = useState(1);
-  const [isNRI, setIsNRI] = useState(false);
-  const [phone, setPhone] = useState('9876543210');
-  const [otp, setOtp] = useState('123456');
-  const [aadhaar, setAadhaar] = useState('7482 9102 3841');
-  const [pan, setPan] = useState('ABCDE1234F');
-  const [nriLocalGuarantor, setNriLocalGuarantor] = useState('K. Srinivas Rao');
-  const [nreAccount, setNreAccount] = useState('NRO-9948123019');
+  const topPadding = Math.max(insets.top, StatusBar.currentHeight || 0, 16);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16);
+
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+
+  // Form States
+  const [phoneInput, setPhoneInput] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [debugOtp, setDebugOtp] = useState(null);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Register Form States
+  const [regFullName, setRegFullName] = useState('');
+  const [regRole, setRegRole] = useState('user'); // 'user' | 'admin'
+  const [agreedToDPDP, setAgreedToDPDP] = useState(true);
+
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-  const totalSteps = isNRI ? 6 : 5;
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer;
+    if (resendCountdown > 0) {
+      timer = setInterval(() => {
+        setResendCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
 
-  const handleNextStep = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (step < totalSteps) {
-        setStep(step + 1);
-      } else {
-        login(
-          {
-            id: `usr-${Date.now()}`,
-            phone: `+91 ${phone}`,
-            full_name: 'Verified Subscriber',
-            role: 'user',
-            kyc_status: 'VERIFIED',
-            is_nri: isNRI,
-            biometric_enabled: true,
-          },
-          'token_verified_subscriber_2026'
-        );
-        if (onComplete) onComplete();
+  const normalizePhone = (rawPhone) => {
+    const cleaned = rawPhone.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('+91')) return cleaned;
+    if (cleaned.startsWith('91') && cleaned.length === 12) return `+${cleaned}`;
+    return `+91${cleaned}`;
+  };
+
+  // Quick helper for testing seeded demo accounts
+  const handleQuickDemoFill = (role) => {
+    setErrorMessage(null);
+    setOtpSent(false);
+    setOtpCode('');
+    setDebugOtp(null);
+    if (role === 'admin') {
+      setPhoneInput('9999900000');
+      if (authMode === 'register') {
+        setRegFullName('ChitTech Foreman');
+        setRegRole('admin');
       }
-    }, 400);
+    } else {
+      setPhoneInput('9999900001');
+      if (authMode === 'register') {
+        setRegFullName('Anitha Kumar');
+        setRegRole('user');
+      }
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    setErrorMessage(null);
+    const cleaned = phoneInput.replace(/[^\d]/g, '');
+    if (cleaned.length < 10) {
+      setErrorMessage('Please enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    if (authMode === 'register' && !regFullName.trim()) {
+      setErrorMessage('Please enter your full legal name as per PAN / Aadhaar.');
+      return;
+    }
+    if (authMode === 'register' && !agreedToDPDP) {
+      setErrorMessage('Please consent to DPDP Act 2023 regulations to continue.');
+      return;
+    }
+
+    const formattedPhone = normalizePhone(phoneInput);
+    setLoading(true);
+
+    try {
+      const res = await apiClient.post('/auth/otp/request', { phone: formattedPhone });
+      setLoading(false);
+      setOtpSent(true);
+      setResendCountdown(30);
+
+      if (res.data?.data?.debugOtp) {
+        setDebugOtp(res.data.data.debugOtp);
+        setOtpCode(res.data.data.debugOtp); // auto-populate in development
+      }
+    } catch (err) {
+      setLoading(false);
+      setErrorMessage(err.message || 'Failed to send OTP. Please check backend connection.');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setErrorMessage(null);
+    if (!otpCode || otpCode.length !== 6) {
+      setErrorMessage('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    const formattedPhone = normalizePhone(phoneInput);
+    setLoading(true);
+
+    try {
+      const payload = {
+        phone: formattedPhone,
+        code: otpCode.trim(),
+        ...(authMode === 'register' ? { fullName: regFullName.trim(), role: regRole } : {}),
+      };
+
+      const res = await apiClient.post('/auth/otp/verify', payload);
+      const { token, user: serverUser, role } = res.data.data;
+
+      // Store JWT token securely
+      await setAuthToken(token);
+
+      // Record DPDP consents on registration
+      if (authMode === 'register' && agreedToDPDP) {
+        try {
+          await apiClient.post('/users/me/consents', {
+            consents: {
+              identity_verification: true,
+              credit_bureau_check: true,
+              auction_participation_records: true,
+              regulatory_reporting_pmla: true,
+              marketing_communications: false,
+            },
+          });
+          updateDPDPConsent('identity_verification', true);
+          updateDPDPConsent('credit_bureau_check', true);
+          updateDPDPConsent('auction_participation_records', true);
+          updateDPDPConsent('regulatory_reporting_pmla', true);
+        } catch (e) {
+          console.warn('DPDP consent saving non-fatal error:', e.message);
+        }
+      }
+
+      // Update global application store
+      login(
+        {
+          id: serverUser.id,
+          phone: serverUser.phone,
+          full_name: serverUser.fullName,
+          role: role || serverUser.role,
+          kyc_status:
+            serverUser.kycStatus === 'APPROVED'
+              ? 'VERIFIED'
+              : serverUser.kycStatus === 'PENDING'
+              ? 'PENDING'
+              : 'NOT_STARTED',
+          is_nri: false,
+          biometric_enabled: rememberMe,
+        },
+        token
+      );
+
+      setLoading(false);
+      if (onComplete) onComplete();
+    } catch (err) {
+      setLoading(false);
+      setErrorMessage(err.message || 'Invalid or expired OTP. Please try again.');
+    }
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.surface.base }]}
-      contentContainerStyle={styles.content}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.surface.base,
+          paddingTop: topPadding,
+          paddingBottom: bottomPadding,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
     >
-      {/* Brand Header */}
-      <View style={styles.header}>
-        <View style={[styles.badge, { backgroundColor: theme.maroon.primary + '18' }]}>
-          <ShieldCheck size={16} color={theme.maroon.primary} />
-          <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 6 }]}>
-            Chit Funds Act 1982 / 2019 Regulated
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Brand Header with Emblem */}
+        <View style={styles.brandHeader}>
+          <View style={[styles.logoContainer, { borderColor: theme.gold.accent }]}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={[typography.h1, { color: theme.text.primary, marginTop: 12 }]}>
+            Naveen Chit Fund
+          </Text>
+          <Text style={[typography.caption, { color: theme.gold.accent, letterSpacing: 2, fontWeight: '700' }]}>
+            GOVERNMENT REGULATED · TRUSTED SAVINGS
           </Text>
         </View>
-        <Text style={[typography.displayHero, { color: theme.text.primary, marginTop: 8 }]}>
-          ChitTech
-        </Text>
-        <Text style={[typography.bodyMedium, { color: theme.text.secondary }]}>
-          Institutional-Grade Digital ROSCA Platform
-        </Text>
-      </View>
 
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressTextRow}>
-          <Text style={[typography.caption, { color: theme.text.secondary }]}>
-            Step {step} of {totalSteps}
-          </Text>
-          <Text style={[typography.caption, { color: theme.gold.accent, fontWeight: '700' }]}>
-            {step === 1 && 'Mobile Authentication'}
-            {step === 2 && 'DPDP 2023 Consent'}
-            {step === 3 && 'Aadhaar eKYC'}
-            {step === 4 && 'PAN Verification'}
-            {step === 5 && 'DigiLocker & Liveness'}
-            {step === 6 && 'NRI & Co-Signatory'}
-          </Text>
-        </View>
-        <View style={[styles.progressBarTrack, { backgroundColor: theme.surface.border }]}>
-          <View
+        {/* Tab Switcher: Sign In vs Create Account */}
+        <View style={[styles.tabSegment, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+          <TouchableOpacity
+            onPress={() => {
+              setAuthMode('login');
+              setOtpSent(false);
+              setErrorMessage(null);
+            }}
             style={[
-              styles.progressBarFill,
-              {
-                backgroundColor: theme.maroon.primary,
-                width: `${(step / totalSteps) * 100}%`,
+              styles.tabBtn,
+              authMode === 'login' && {
+                backgroundColor: theme.surface.card,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
               },
             ]}
-          />
+          >
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: authMode === 'login' ? theme.maroon.primary : theme.text.secondary,
+                  fontWeight: authMode === 'login' ? '700' : '500',
+                  fontSize: 13,
+                },
+              ]}
+            >
+              Sign In
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setAuthMode('register');
+              setOtpSent(false);
+              setErrorMessage(null);
+            }}
+            style={[
+              styles.tabBtn,
+              authMode === 'register' && {
+                backgroundColor: theme.surface.card,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: authMode === 'register' ? theme.maroon.primary : theme.text.secondary,
+                  fontWeight: authMode === 'register' ? '700' : '500',
+                  fontSize: 13,
+                },
+              ]}
+            >
+              Create Account
+            </Text>
+          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* STEP 1: Phone OTP */}
-      {step === 1 && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <Smartphone size={22} color={theme.maroon.primary} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              Enter Mobile Number
+        {/* Demo Account Quick Fill Bar */}
+        <View style={styles.demoBar}>
+          <Text style={[typography.caption, { color: theme.text.muted, marginRight: 8 }]}>Demo accounts:</Text>
+          <TouchableOpacity
+            onPress={() => handleQuickDemoFill('admin')}
+            style={[styles.demoPill, { borderColor: theme.maroon.primary + '50', backgroundColor: theme.maroon.primary + '10' }]}
+          >
+            <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>Foreman</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleQuickDemoFill('user')}
+            style={[styles.demoPill, { borderColor: theme.gold.accent + '60', backgroundColor: theme.gold.accent + '15' }]}
+          >
+            <Text style={[typography.caption, { color: theme.gold.accent, fontWeight: '700' }]}>Subscriber</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Error Banner */}
+        {errorMessage && (
+          <View style={[styles.errorBanner, { backgroundColor: theme.semantic.errorBg, borderColor: theme.semantic.error + '40' }]}>
+            <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '600' }]}>
+              {errorMessage}
             </Text>
           </View>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, marginVertical: 8 }]}>
-            We will send a 6-digit OTP to verify your identity.
+        )}
+
+        {/* Main Authentication Card */}
+        <Card style={styles.formCard}>
+          <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 4 }]}>
+            {authMode === 'login' ? 'Welcome Back' : 'Register New Account'}
+          </Text>
+          <Text style={[typography.caption, { color: theme.text.secondary, marginBottom: 20 }]}>
+            {otpSent
+              ? `Enter 6-digit OTP sent to ${normalizePhone(phoneInput)}`
+              : authMode === 'login'
+              ? 'Sign in securely using 6-digit phone verification OTP'
+              : 'Join regulated chit groups with instant eKYC'}
           </Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>Mobile Number</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <Text style={[typography.bodyLarge, { color: theme.text.primary, marginRight: 8, fontWeight: '600' }]}>+91</Text>
-              <TextInput
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary }]}
-                placeholder="9876543210"
-                placeholderTextColor={theme.text.muted}
+          {/* Registration Extra Fields */}
+          {authMode === 'register' && !otpSent && (
+            <>
+              <Input
+                label="FULL LEGAL NAME (AS PER PAN / AADHAAR)"
+                placeholder="e.g. Anitha Kumar"
+                value={regFullName}
+                onChangeText={setRegFullName}
+                leftIcon={User}
+                autoCapitalize="words"
               />
-            </View>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>One-Time Password (OTP)</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <TextInput
-                keyboardType="numeric"
-                value={otp}
-                onChangeText={setOtp}
-                maxLength={6}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary, letterSpacing: 4 }]}
-                placeholder="123456"
-                placeholderTextColor={theme.text.muted}
-              />
-            </View>
-          </View>
+              {/* Account Type */}
+              <Text style={[typography.caption, styles.fieldLabel, { color: theme.text.secondary, marginTop: 14 }]}>
+                ACCOUNT TYPE
+              </Text>
+              <View style={styles.roleSelectionRow}>
+                <TouchableOpacity
+                  onPress={() => setRegRole('user')}
+                  style={[
+                    styles.roleCard,
+                    {
+                      backgroundColor: regRole === 'user' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                      borderColor: regRole === 'user' ? theme.maroon.primary : theme.surface.border,
+                    },
+                  ]}
+                >
+                  <UserCheck size={18} color={regRole === 'user' ? theme.maroon.primary : theme.text.muted} />
+                  <Text style={[typography.caption, { color: regRole === 'user' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                    Subscriber
+                  </Text>
+                  <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                    Save & Bid in Chits
+                  </Text>
+                </TouchableOpacity>
 
-          {/* NRI Toggle */}
-          <View style={[styles.toggleCard, { backgroundColor: theme.surface.cardSubtle }]}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Globe size={16} color={theme.maroon.primary} />
-                <Text style={[typography.h3, { color: theme.text.primary, marginLeft: 6 }]}>
-                  Are you an NRI Subscriber?
-                </Text>
+                <TouchableOpacity
+                  onPress={() => setRegRole('admin')}
+                  style={[
+                    styles.roleCard,
+                    {
+                      backgroundColor: regRole === 'admin' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                      borderColor: regRole === 'admin' ? theme.maroon.primary : theme.surface.border,
+                    },
+                  ]}
+                >
+                  <Building size={18} color={regRole === 'admin' ? theme.maroon.primary : theme.text.muted} />
+                  <Text style={[typography.caption, { color: regRole === 'admin' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                    Foreman
+                  </Text>
+                  <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                    Compliance & Filing
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 4 }]}>
-                Enables non-repatriable NRO linkage and resident co-signatory verification.
-              </Text>
-            </View>
-            <Switch
-              value={isNRI}
-              onValueChange={setIsNRI}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={isNRI ? theme.gold.accent : '#f4f3f4'}
-            />
-          </View>
+            </>
+          )}
 
-          <Button
-            title="Verify & Proceed"
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
-        </Card>
-      )}
-
-      {/* STEP 2: Granular DPDP Consent Screen */}
-      {step === 2 && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <Lock size={22} color={theme.gold.accent} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              DPDP Act 2023 Consent
-            </Text>
-          </View>
-          <Text style={[typography.bodySmall, { color: theme.text.secondary, marginTop: 6, marginBottom: 16 }]}>
-            Under India's Digital Personal Data Protection Act 2023, you have full granular control over what information is collected, why, and how long it is retained.
-          </Text>
-
-          <View style={[styles.consentItem, { borderBottomColor: theme.surface.border }]}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>Identity & Address (eKYC)</Text>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 2 }]}>
-                Mandatory under Chit Funds Act § 16. Used strictly for subscriber registry and PSO filing.
-              </Text>
-            </View>
-            <Switch
-              value={dpdpConsents.identity_verification}
-              disabled={true}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={theme.gold.accent}
-            />
-          </View>
-
-          <View style={[styles.consentItem, { borderBottomColor: theme.surface.border }]}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>Credit Bureau Verification</Text>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 2 }]}>
-                Checks CIBIL/Experian score for surety eligibility upon winning a prized bid.
-              </Text>
-            </View>
-            <Switch
-              value={dpdpConsents.credit_bureau_check}
-              onValueChange={(val) => updateDPDPConsent('credit_bureau_check', val)}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={dpdpConsents.credit_bureau_check ? theme.gold.accent : '#eee'}
-            />
-          </View>
-
-          <View style={[styles.consentItem, { borderBottomColor: theme.surface.border }]}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>Live Auction Records</Text>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 2 }]}>
-                Timestamped bid ledger recording for double-entry transparency and audit trails.
-              </Text>
-            </View>
-            <Switch
-              value={dpdpConsents.auction_participation_records}
-              onValueChange={(val) => updateDPDPConsent('auction_participation_records', val)}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={dpdpConsents.auction_participation_records ? theme.gold.accent : '#eee'}
-            />
-          </View>
-
-          <View style={[styles.consentItem, { borderBottomColor: theme.surface.border }]}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>Regulatory Filing (PMLA/CTR)</Text>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 2 }]}>
-                Compliance reporting for Cash/Suspicious Transactions under FIU-IND directives.
-              </Text>
-            </View>
-            <Switch
-              value={dpdpConsents.regulatory_reporting_pmla}
-              disabled={true}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={theme.gold.accent}
-            />
-          </View>
-
-          <View style={[styles.consentItem, { borderBottomWidth: 0 }]}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>SMS & WhatsApp Reminders</Text>
-              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 2 }]}>
-                Optional auction start countdowns and dividend credit notifications.
-              </Text>
-            </View>
-            <Switch
-              value={dpdpConsents.marketing_communications}
-              onValueChange={(val) => updateDPDPConsent('marketing_communications', val)}
-              trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-              thumbColor={dpdpConsents.marketing_communications ? theme.gold.accent : '#eee'}
-            />
-          </View>
-
-          <Button
-            title="Accept Selected & Continue"
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
-        </Card>
-      )}
-
-      {/* STEP 3: Aadhaar OTP */}
-      {step === 3 && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <CreditCard size={22} color={theme.maroon.primary} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              Aadhaar Paperless eKYC
-            </Text>
-          </View>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, marginVertical: 8 }]}>
-            We fetch your UIDAI verified demographic details via OTP. Raw numbers are masked and never stored unencrypted.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>12-Digit Aadhaar Number</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <TextInput
-                keyboardType="numeric"
-                value={aadhaar}
-                onChangeText={setAadhaar}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary, letterSpacing: 2 }]}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.secureNote, { backgroundColor: theme.semantic.successBg }]}>
-            <CheckCircle2 size={16} color={theme.semantic.success} />
-            <Text style={[typography.caption, { color: theme.semantic.success, marginLeft: 6, fontWeight: '600' }]}>
-              UIDAI Vault Tokenized · 256-bit Encrypted
-            </Text>
-          </View>
-
-          <Button
-            title="Verify Aadhaar OTP"
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
-        </Card>
-      )}
-
-      {/* STEP 4: PAN Card Verification */}
-      {step === 4 && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <FileCheck size={22} color={theme.gold.accent} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              Permanent Account Number (PAN)
-            </Text>
-          </View>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, marginVertical: 8 }]}>
-            Required for TDS deduction on chit dividends and Prize Money disbursals exceeding ₹10,000.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>10-Digit PAN</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <TextInput
-                autoCapitalize="characters"
-                value={pan}
-                onChangeText={setPan}
+          {/* Mobile Number Field (if OTP not yet sent) */}
+          {!otpSent ? (
+            <>
+              <Input
+                label="MOBILE NUMBER"
+                placeholder="Enter 10-digit number"
+                keyboardType="phone-pad"
                 maxLength={10}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary, letterSpacing: 2 }]}
+                value={phoneInput}
+                onChangeText={setPhoneInput}
+                prefix="+91"
+                rightIcon={Smartphone}
+                clearable
+                containerStyle={{ marginTop: authMode === 'register' ? 6 : 0 }}
               />
-            </View>
-          </View>
 
-          <Button
-            title="Verify with NSDL"
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
+              {/* DPDP 2023 Consent Checkbox for registration */}
+              {authMode === 'register' && (
+                <TouchableOpacity
+                  onPress={() => setAgreedToDPDP(!agreedToDPDP)}
+                  style={styles.consentRow}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      {
+                        backgroundColor: agreedToDPDP ? theme.maroon.primary : 'transparent',
+                        borderColor: agreedToDPDP ? theme.maroon.primary : theme.surface.border,
+                      },
+                    ]}
+                  >
+                    {agreedToDPDP && <CheckCircle2 size={13} color="#FFFFFF" />}
+                  </View>
+                  <Text style={[typography.caption, { color: theme.text.secondary, flex: 1, marginLeft: 10, lineHeight: 16 }]}>
+                    I consent to digital identity verification under DPDP Act 2023 and agree to Chit Funds Act 1982 bye-laws.
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Request OTP Button */}
+              <Button
+                title={authMode === 'login' ? 'Send Verification OTP' : 'Send Registration OTP'}
+                variant="primary"
+                loading={loading}
+                onPress={handleRequestOtp}
+                icon={<ArrowRight size={18} color="#FFFFFF" />}
+                style={{ marginTop: 22 }}
+              />
+            </>
+          ) : (
+            /* OTP Verification Step */
+            <>
+              {/* Phone number change chip */}
+              <View style={[styles.phoneChip, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+                <Smartphone size={14} color={theme.text.secondary} />
+                <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700', marginLeft: 6 }]}>
+                  {normalizePhone(phoneInput)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setOtpSent(false);
+                    setOtpCode('');
+                    setDebugOtp(null);
+                  }}
+                  style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Edit3 size={12} color={theme.maroon.primary} />
+                  <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Development OTP Banner */}
+              {debugOtp && (
+                <View style={[styles.devOtpCard, { backgroundColor: theme.gold.accent + '20', borderColor: theme.gold.accent + '50' }]}>
+                  <Text style={[typography.caption, { color: theme.text.primary }]}>
+                    Dev Mode Code: <Text style={{ fontWeight: '800', letterSpacing: 2 }}>{debugOtp}</Text>
+                  </Text>
+                  <TouchableOpacity onPress={() => setOtpCode(debugOtp)}>
+                    <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '800', marginLeft: 8 }]}>
+                      AUTO-FILL
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <Input
+                label="6-DIGIT VERIFICATION CODE"
+                placeholder="Enter 6-digit code"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otpCode}
+                onChangeText={setOtpCode}
+                leftIcon={KeyRound}
+                inputStyle={{ letterSpacing: 6, fontWeight: '700', fontSize: 18 }}
+                containerStyle={{ marginTop: 10 }}
+              />
+
+              {/* Resend OTP Row */}
+              <View style={styles.resendRow}>
+                {resendCountdown > 0 ? (
+                  <Text style={[typography.caption, { color: theme.text.muted }]}>
+                    Resend code in {resendCountdown}s
+                  </Text>
+                ) : (
+                  <TouchableOpacity onPress={handleRequestOtp} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <RefreshCw size={12} color={theme.maroon.primary} />
+                    <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
+                      Resend OTP
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Biometric Toggle */}
+              <View style={styles.rememberRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Switch
+                    value={rememberMe}
+                    onValueChange={setRememberMe}
+                    trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                  <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
+                    Remember session on device
+                  </Text>
+                </View>
+              </View>
+
+              {/* Verify Button */}
+              <Button
+                title={authMode === 'login' ? 'Verify & Sign In' : 'Verify & Complete Registration'}
+                variant="primary"
+                loading={loading}
+                onPress={handleVerifyOtp}
+                icon={<CheckCircle2 size={18} color="#FFFFFF" />}
+                style={{ marginTop: 20 }}
+              />
+            </>
+          )}
         </Card>
-      )}
 
-      {/* STEP 5: DigiLocker / Selfie Liveness */}
-      {step === 5 && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <Camera size={22} color={theme.maroon.primary} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              Selfie Liveness Verification
-            </Text>
-          </View>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, marginVertical: 8 }]}>
-            Capture a live photograph to ensure match with your Aadhaar photo and fulfill RBI Master Directions on digital onboarding.
+        {/* Regulatory Footer Stamp */}
+        <View style={styles.footerStamp}>
+          <ShieldCheck size={16} color={theme.gold.accent} />
+          <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
+            Protected by Chit Funds Act, 1982 & DPDP Act, 2023
           </Text>
-
-          <View style={[styles.selfiePlaceholder, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.gold.accent }]}>
-            <Camera size={44} color={theme.maroon.primary} />
-            <Text style={[typography.h3, { color: theme.text.primary, marginTop: 8 }]}>
-              Face Match: 98.4% Match
-            </Text>
-            <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '700' }]}>
-              ✓ Liveness Confirmed
-            </Text>
-          </View>
-
-          <Button
-            title={isNRI ? 'Proceed to NRI Details' : 'Complete Registration'}
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
-        </Card>
-      )}
-
-      {/* STEP 6: NRI Specific Flow */}
-      {step === 6 && isNRI && (
-        <Card variant="elevated" style={styles.stepCard}>
-          <View style={styles.stepTitleRow}>
-            <Globe size={22} color={theme.gold.accent} />
-            <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-              NRI Regulatory Compliance
-            </Text>
-          </View>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, marginVertical: 8 }]}>
-            Under RBI Foreign Exchange Management Act (FEMA) regulations, chit subscription must be through Non-Resident Ordinary (NRO) accounts with a resident co-signatory.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>NRO Account Reference</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <TextInput
-                value={nreAccount}
-                onChangeText={setNreAccount}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary }]}
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>Resident Local Co-Signatory</Text>
-            <View style={[styles.inputWrapper, { borderColor: theme.surface.border, backgroundColor: theme.surface.inputBg }]}>
-              <TextInput
-                value={nriLocalGuarantor}
-                onChangeText={setNriLocalGuarantor}
-                style={[typography.bodyLarge, styles.input, { color: theme.text.primary }]}
-              />
-            </View>
-          </View>
-
-          <Button
-            title="Complete NRI Onboarding"
-            onPress={handleNextStep}
-            loading={loading}
-            style={{ marginTop: 20 }}
-          />
-        </Card>
-      )}
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -441,88 +561,152 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
-  header: {
+  brandHeader: {
     alignItems: 'center',
-    marginVertical: 16,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  progressContainer: {
     marginBottom: 20,
   },
-  progressTextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  progressBarTrack: {
-    height: 6,
-    borderRadius: 3,
+  logoContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  progressBarFill: {
+  brandLogo: {
+    width: '100%',
     height: '100%',
-    borderRadius: 3,
   },
-  stepCard: {
-    padding: 20,
+  tabSegment: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 14,
   },
-  stepTitleRow: {
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  demoBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
-  inputGroup: {
-    marginTop: 14,
+  demoPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginHorizontal: 4,
   },
-  inputWrapper: {
+  errorBanner: {
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  formCard: {
+    padding: 22,
+    borderRadius: 18,
+  },
+  fieldLabel: {
+    fontWeight: '700',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 48,
+    overflow: 'hidden',
+  },
+  countryBadge: {
+    paddingHorizontal: 12,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#E0E0E020',
+  },
+  textInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    height: '100%',
+  },
+  phoneChip: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
-    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
   },
-  input: {
-    flex: 1,
-  },
-  toggleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
-    marginTop: 18,
-  },
-  consentItem: {
+  devOtpCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 6,
   },
-  secureNote: {
+  resendRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 14,
+    justifyContent: 'flex-end',
+    marginTop: 8,
   },
-  selfiePlaceholder: {
+  rememberRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  roleSelectionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 6,
+  },
+  roleCard: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+    alignItems: 'center',
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 16,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 30,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginVertical: 16,
+    marginTop: 1,
+  },
+  footerStamp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
   },
 });

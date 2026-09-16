@@ -1,4 +1,5 @@
-const { Pool } = require('pg');
+import pg from 'pg';
+const { Pool } = pg;
 
 const isInternalOrLocal =
   !process.env.DATABASE_URL ||
@@ -47,4 +48,38 @@ async function withTransaction(fn) {
   }
 }
 
-module.exports = { pool, query, withTransaction };
+/**
+ * Append an immutable record to the audit_events table.
+ * Accepts either pool or client (for in-transaction audit logging).
+ */
+async function logAuditEvent(runner, {
+  eventType,
+  actorId = null,
+  entityType,
+  entityId = null,
+  beforeState = null,
+  afterState = null,
+  metadata = {},
+  ipAddress = null,
+}) {
+  const q = runner || pool;
+  return q.query(
+    `INSERT INTO audit_events
+       (event_type, actor_id, entity_type, entity_id, before_state, after_state, metadata, ip_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      eventType,
+      actorId,
+      entityType,
+      entityId ? String(entityId) : null,
+      beforeState ? JSON.stringify(beforeState) : null,
+      afterState ? JSON.stringify(afterState) : null,
+      JSON.stringify(metadata || {}),
+      ipAddress,
+    ]
+  );
+}
+
+export { pool, query, withTransaction, logAuditEvent };
+

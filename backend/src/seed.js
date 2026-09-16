@@ -1,5 +1,5 @@
-require('dotenv').config();
-const { pool, query, withTransaction } = require('./db');
+import 'dotenv/config';
+import { pool, query, withTransaction } from './db.js';
 
 async function seed() {
   console.log('Seeding ChitTech database...');

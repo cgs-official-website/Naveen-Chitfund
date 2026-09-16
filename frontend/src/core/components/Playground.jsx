@@ -9,11 +9,12 @@ import {
 import { useTheme } from '../theme/ThemeProvider';
 import { Card } from './Card';
 import { Button } from './Button';
+import { Input } from './Input';
 import { TransparencyBadge } from './TransparencyBadge';
 import { BidDial } from './BidDial';
 import { ReverseBidSlider } from './ReverseBidSlider';
 import { OfflineBanner } from './OfflineBanner';
-import { Palette, Sun, Moon, Layers, Sliders } from 'lucide-react-native';
+import { Palette, Sun, Moon, Layers, Sliders, User, Smartphone, Search, Lock, Edit3 } from 'lucide-react-native';
 
 export const ComponentPlayground = () => {
   const { theme, typography, isDark, toggleTheme } = useTheme();
@@ -21,6 +22,12 @@ export const ComponentPlayground = () => {
   const [dialSeconds, setDialSeconds] = useState(54);
   const [dialBidPct, setDialBidPct] = useState(22.5);
   const [sliderBidPct, setSliderBidPct] = useState(24.0);
+
+  // Input demo states
+  const [sampleName, setSampleName] = useState('Anitha Kumar');
+  const [samplePhone, setSamplePhone] = useState('9876543210');
+  const [sampleAmount, setSampleAmount] = useState('500000');
+  const [sampleError, setSampleError] = useState('Invalid PAN checksum format');
 
   return (
     <ScrollView
@@ -186,7 +193,68 @@ export const ComponentPlayground = () => {
         </View>
       </Card>
 
-      {/* 6. Offline Banner */}
+      {/* 6. Modern Input Component System */}
+      <Card style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <Edit3 size={18} color={theme.gold.accent} />
+          <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 8 }]}>
+            Modern Input Components & States
+          </Text>
+        </View>
+
+        <Input
+          label="Full Legal Name"
+          placeholder="Enter legal name"
+          value={sampleName}
+          onChangeText={setSampleName}
+          leftIcon={User}
+          clearable
+          helperText="Active focus ring animates with gold accent glow"
+        />
+
+        <Input
+          label="Mobile Verification Number"
+          placeholder="10-digit mobile"
+          value={samplePhone}
+          onChangeText={setSamplePhone}
+          prefix="+91"
+          rightIcon={Smartphone}
+          keyboardType="phone-pad"
+          maxLength={10}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Input
+              label="Chit Amount"
+              value={sampleAmount}
+              onChangeText={setSampleAmount}
+              prefix="₹"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Input
+              label="Commission"
+              value="5.0"
+              suffix="%"
+              disabled
+              helperText="Statutory maximum"
+            />
+          </View>
+        </View>
+
+        <Input
+          label="Permanent Account Number (PAN)"
+          value="ABCDE1234Z"
+          autoCapitalize="characters"
+          error={sampleError}
+          onChangeText={() => setSampleError('')}
+          helperText="Clears automatically upon editing"
+        />
+      </Card>
+
+      {/* 7. Offline Banner */}
       <Card style={styles.sectionCard}>
         <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 12 }]}>
           Offline Tolerance Banner

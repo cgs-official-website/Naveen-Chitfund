@@ -1,9 +1,9 @@
-const express = require('express');
-const { z } = require('zod');
-const { query } = require('../db');
-const { requireAuth, requireRole } = require('../middleware/auth');
-const { asyncHandler, ApiError } = require('../middleware/errorHandler');
-const { validateBody, getPagination, paginatedResponse } = require('../utils/validate');
+import express from 'express';
+import { z } from 'zod';
+import { query } from '../db.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
+import { validateBody, getPagination, paginatedResponse } from '../utils/validate.js';
 
 const router = express.Router();
 
@@ -21,6 +21,22 @@ router.get(
     const { rows } = await query('SELECT * FROM users WHERE id = $1', [req.user.userId]);
     if (!rows.length) throw new ApiError(404, 'User not found');
     const u = rows[0];
+
+    // Query recorded DPDP consents
+    let consents = {};
+    try {
+      const consentRows = await query(
+        'SELECT consent_type, granted FROM dpdp_consents WHERE user_id = $1',
+        [u.id]
+      );
+      for (const r of consentRows.rows) {
+        consents[r.consent_type] = r.granted;
+      }
+    } catch (e) {
+      // Graceful fallback if table is freshly migrated
+      consents = {};
+    }
+
     res.json({
       success: true,
       data: {
@@ -31,9 +47,34 @@ router.get(
         role: u.role,
         kycStatus: u.kyc_status,
         panNumber: u.pan_number,
+        consents,
         createdAt: u.created_at,
       },
     });
+  })
+);
+
+// POST /api/v1/users/me/consents (DPDP Act, 2023 compliance)
+router.post(
+  '/me/consents',
+  requireAuth,
+  validateBody(z.object({ consents: z.record(z.boolean()) })),
+  asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const { consents } = req.body;
+    const ip = req.ip;
+
+    for (const [consentType, granted] of Object.entries(consents)) {
+      await query(
+        `INSERT INTO dpdp_consents (user_id, consent_type, granted, ip_address)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, consent_type)
+         DO UPDATE SET granted = EXCLUDED.granted, granted_at = now(), ip_address = EXCLUDED.ip_address`,
+        [userId, consentType, Boolean(granted), ip]
+      );
+    }
+
+    res.json({ success: true, data: { message: 'DPDP consents updated' } });
   })
 );
 
@@ -101,4 +142,4 @@ router.post(
   })
 );
 
-module.exports = router;
+export default router;

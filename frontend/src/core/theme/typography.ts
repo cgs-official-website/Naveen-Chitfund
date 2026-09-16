@@ -1,98 +1,110 @@
 import { TextStyle, Platform } from 'react-native';
 
-const SERIF_FAMILY = Platform.select({
-  ios: 'Georgia',
-  android: 'serif',
-  default: 'Georgia, serif',
+const POPPINS_REGULAR = Platform.select({
+  ios: 'Poppins-Regular',
+  android: 'Poppins-Regular',
+  default: 'Poppins, sans-serif',
 });
 
-const SANS_FAMILY = Platform.select({
-  ios: 'System',
-  android: 'Roboto',
-  default: 'Inter, system-ui, -apple-system, sans-serif',
+const POPPINS_MEDIUM = Platform.select({
+  ios: 'Poppins-Medium',
+  android: 'Poppins-Medium',
+  default: 'Poppins, sans-serif',
+});
+
+const POPPINS_SEMIBOLD = Platform.select({
+  ios: 'Poppins-SemiBold',
+  android: 'Poppins-SemiBold',
+  default: 'Poppins, sans-serif',
+});
+
+const POPPINS_BOLD = Platform.select({
+  ios: 'Poppins-Bold',
+  android: 'Poppins-Bold',
+  default: 'Poppins, sans-serif',
 });
 
 export const typography = {
-  // Hero numbers and display headlines (Serif)
+  // Hero numbers and display headlines (Poppins Bold)
   displayHero: {
-    fontFamily: SERIF_FAMILY,
+    fontFamily: POPPINS_BOLD,
     fontSize: 34,
     fontWeight: '700' as const,
     lineHeight: 42,
     fontVariant: ['tabular-nums' as const],
   },
   displayLarge: {
-    fontFamily: SERIF_FAMILY,
+    fontFamily: POPPINS_BOLD,
     fontSize: 28,
     fontWeight: '700' as const,
     lineHeight: 36,
     fontVariant: ['tabular-nums' as const],
   },
   displayMedium: {
-    fontFamily: SERIF_FAMILY,
+    fontFamily: POPPINS_SEMIBOLD,
     fontSize: 22,
     fontWeight: '600' as const,
     lineHeight: 28,
     fontVariant: ['tabular-nums' as const],
   },
 
-  // Sans headings
+  // Sans headings (Poppins Bold & SemiBold)
   h1: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_BOLD,
     fontSize: 24,
     fontWeight: '700' as const,
-    lineHeight: 30,
+    lineHeight: 32,
   },
   h2: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_SEMIBOLD,
     fontSize: 20,
     fontWeight: '600' as const,
-    lineHeight: 26,
+    lineHeight: 28,
   },
   h3: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_SEMIBOLD,
     fontSize: 16,
     fontWeight: '600' as const,
-    lineHeight: 22,
+    lineHeight: 24,
   },
 
-  // Body sans
+  // Body sans (Poppins Regular)
   bodyLarge: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_REGULAR,
     fontSize: 16,
     fontWeight: '400' as const,
     lineHeight: 24,
   },
   bodyMedium: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_REGULAR,
     fontSize: 14,
     fontWeight: '400' as const,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   bodySmall: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_REGULAR,
     fontSize: 12,
     fontWeight: '400' as const,
-    lineHeight: 16,
+    lineHeight: 18,
   },
 
   // Numeric and tabular
   numericLarge: {
-    fontFamily: SERIF_FAMILY,
+    fontFamily: POPPINS_BOLD,
     fontSize: 24,
     fontWeight: '700' as const,
-    lineHeight: 30,
+    lineHeight: 32,
     fontVariant: ['tabular-nums' as const],
   },
   numericMedium: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_SEMIBOLD,
     fontSize: 16,
     fontWeight: '600' as const,
-    lineHeight: 22,
+    lineHeight: 24,
     fontVariant: ['tabular-nums' as const],
   },
   numericSmall: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_MEDIUM,
     fontSize: 13,
     fontWeight: '500' as const,
     lineHeight: 18,
@@ -101,17 +113,17 @@ export const typography = {
 
   // Metadata & Captions
   caption: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_MEDIUM,
     fontSize: 11,
     fontWeight: '500' as const,
-    lineHeight: 14,
+    lineHeight: 16,
     letterSpacing: 0.3,
   },
   overline: {
-    fontFamily: SANS_FAMILY,
+    fontFamily: POPPINS_BOLD,
     fontSize: 10,
     fontWeight: '700' as const,
-    lineHeight: 12,
+    lineHeight: 14,
     letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
   },

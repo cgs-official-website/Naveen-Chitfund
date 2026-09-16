@@ -16,44 +16,7 @@ export const NotificationsScreen = () => {
 
   const isForeman = user?.role === 'admin';
 
-  const notifications = [
-    {
-      id: 'notif-1',
-      title: 'Auction Starting in 15 Minutes',
-      body: 'Kaveti Smart Wealth Series-I auction opens at 05:30 PM. Quorum check is live.',
-      time: '15m ago',
-      type: 'AUCTION',
-      isUnread: true,
-      foremanOnly: false,
-    },
-    {
-      id: 'notif-2',
-      title: 'Dividend Credited: +₹3,800.00',
-      body: 'Your share of Month 3 auction discount has reduced your next installment.',
-      time: '2h ago',
-      type: 'DIVIDEND',
-      isUnread: false,
-      foremanOnly: false,
-    },
-    {
-      id: 'notif-3',
-      title: 'Form XIV Minutes Due for Filing',
-      body: 'Auction minutes for Series-I Month 3 must be lodged with Registrar within 48 hours.',
-      time: '1d ago',
-      type: 'REGISTRAR',
-      isUnread: true,
-      foremanOnly: true,
-    },
-    {
-      id: 'notif-4',
-      title: 'Installment Due Reminder',
-      body: 'Next due date is 15 Sep 2026 for Kakatiya Premium Gold Chit.',
-      time: '2d ago',
-      type: 'DUE_DATE',
-      isUnread: false,
-      foremanOnly: false,
-    },
-  ];
+  const notifications = [];
 
   const filteredNotifications = notifications.filter(
     (n) => !n.foremanOnly || isForeman
@@ -71,49 +34,58 @@ export const NotificationsScreen = () => {
         </Text>
       </View>
 
-      {filteredNotifications.map((n) => {
-        const getIcon = () => {
-          switch (n.type) {
-            case 'AUCTION':
-              return <Gavel size={20} color={theme.gold.accent} />;
-            case 'DIVIDEND':
-              return <DollarSign size={20} color={theme.semantic.success} />;
-            case 'REGISTRAR':
-              return <FileCheck size={20} color={theme.maroon.primary} />;
-            default:
-              return <AlertCircle size={20} color={theme.semantic.warning} />;
-          }
-        };
+      {filteredNotifications.length === 0 ? (
+        <Card style={{ padding: 24, alignItems: 'center', marginTop: 10 }}>
+          <Text style={[typography.h3, { color: theme.text.primary }]}>No Notifications</Text>
+          <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 4, textAlign: 'center' }]}>
+            You're all caught up. No pending auction alerts or statutory notices.
+          </Text>
+        </Card>
+      ) : (
+        filteredNotifications.map((n) => {
+          const getIcon = () => {
+            switch (n.type) {
+              case 'AUCTION':
+                return <Gavel size={20} color={theme.gold.accent} />;
+              case 'DIVIDEND':
+                return <DollarSign size={20} color={theme.semantic.success} />;
+              case 'REGISTRAR':
+                return <FileCheck size={20} color={theme.maroon.primary} />;
+              default:
+                return <AlertCircle size={20} color={theme.semantic.warning} />;
+            }
+          };
 
-        return (
-          <Card
-            key={n.id}
-            style={[
-              styles.notifCard,
-              n.isUnread && {
-                borderColor: theme.maroon.primary + '50',
-                backgroundColor: theme.surface.cardSubtle,
-              },
-            ]}
-          >
-            <View style={styles.notifRow}>
-              <View style={styles.iconWrapper}>{getIcon()}</View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <View style={styles.titleRow}>
-                  <Text style={[typography.h3, { color: theme.text.primary }]}>{n.title}</Text>
-                  {n.isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.maroon.primary }]} />}
+          return (
+            <Card
+              key={n.id}
+              style={[
+                styles.notifCard,
+                n.isUnread && {
+                  borderColor: theme.maroon.primary + '50',
+                  backgroundColor: theme.surface.cardSubtle,
+                },
+              ]}
+            >
+              <View style={styles.notifRow}>
+                <View style={styles.iconWrapper}>{getIcon()}</View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={styles.titleRow}>
+                    <Text style={[typography.h3, { color: theme.text.primary }]}>{n.title}</Text>
+                    {n.isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.maroon.primary }]} />}
+                  </View>
+                  <Text style={[typography.bodySmall, { color: theme.text.secondary, marginTop: 3 }]}>
+                    {n.body}
+                  </Text>
+                  <Text style={[typography.caption, { color: theme.text.muted, marginTop: 6 }]}>
+                    {n.time} {n.foremanOnly ? '· Foreman Compliance Nudge' : ''}
+                  </Text>
                 </View>
-                <Text style={[typography.bodySmall, { color: theme.text.secondary, marginTop: 3 }]}>
-                  {n.body}
-                </Text>
-                <Text style={[typography.caption, { color: theme.text.muted, marginTop: 6 }]}>
-                  {n.time} {n.foremanOnly ? '· Foreman Compliance Nudge' : ''}
-                </Text>
               </View>
-            </View>
-          </Card>
-        );
-      })}
+            </Card>
+          );
+        })
+      )}
     </ScrollView>
   );
 };

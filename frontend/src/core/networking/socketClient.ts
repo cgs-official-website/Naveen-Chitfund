@@ -1,10 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 
-const SOCKET_URL = Platform.select({
-  android: 'http://10.0.2.2:4000',
-  default: 'http://localhost:4000',
-});
+// With 'adb reverse tcp:4000 tcp:4000', localhost:4000 routes over USB directly to computer
+const SOCKET_URL = 'http://localhost:4000';
 
 export type SocketStatus = 'connected' | 'reconnecting' | 'disconnected';
 

@@ -1,4 +1,4 @@
-const Redis = require('ioredis');
+import Redis from 'ioredis';
 
 let redis;
 const redisUrl = process.env.REDIS_URL;
@@ -39,4 +39,4 @@ if (redisUrl && !redisUrl.includes('localhost')) {
 const auctionKey = (auctionId) => `auction:${auctionId}:state`;
 const auctionBidsKey = (auctionId) => `auction:${auctionId}:bids`; // recent bid log (list)
 
-module.exports = { redis, auctionKey, auctionBidsKey };
+export { redis, auctionKey, auctionBidsKey };

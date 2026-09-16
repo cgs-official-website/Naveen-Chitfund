@@ -65,9 +65,14 @@ function calculateDividend({
   if (policy === 'ALL_SUBSCRIBERS') {
     eligible = subscriptions;
   } else {
-    // NON_PRIZED_ONLY: everyone except the winner of THIS auction and any
-    // previously-prized subscriber.
-    eligible = subscriptions.filter((s) => s.subscriberStatus !== 'PS');
+    // NON_PRIZED_ONLY: everyone except the winner of THIS auction (who transitions to SB)
+    // and any previously-prized subscribers (PS or SB).
+    eligible = subscriptions.filter(
+      (s) =>
+        s.subscriberStatus !== 'PS' &&
+        s.subscriberStatus !== 'SB' &&
+        s.subscriptionId !== winningSubscriptionId
+    );
   }
 
   if (eligible.length === 0) {
@@ -98,4 +103,4 @@ function calculateDividend({
   return { commissionPaise, distributablePaise, perSubscriber, totalDistributedPaise };
 }
 
-module.exports = { calculateDividend, toPaise, toRupees };
+export { calculateDividend, toPaise, toRupees };

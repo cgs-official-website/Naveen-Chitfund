@@ -1,7 +1,7 @@
-const express = require('express');
-const { query, withTransaction } = require('../db');
-const { requireAuth } = require('../middleware/auth');
-const { asyncHandler, ApiError } = require('../middleware/errorHandler');
+import express from 'express';
+import { query, withTransaction } from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
 
 // Two separate routers so each can be mounted under the correct URL prefix
 // without accidentally exposing routes under the wrong path.
@@ -24,6 +24,15 @@ joinRouter.post(
 
       if (group.status !== 'OPEN') {
         throw new ApiError(400, 'Chit group is not open for new subscribers');
+      }
+
+      // Check current subscriber count against group duration capacity
+      const countRes = await client.query(
+        'SELECT COUNT(*)::int AS count FROM subscriptions WHERE chit_group_id = $1',
+        [groupId]
+      );
+      if (countRes.rows[0].count >= group.duration_months) {
+        throw new ApiError(400, 'Chit group is already at full capacity');
       }
 
       const existing = await client.query(
@@ -49,15 +58,27 @@ joinRouter.post(
 
       // Auto-generate installment schedule: chit_amount / duration_months per month.
       const installmentAmount = (Number(group.chit_amount) / group.duration_months).toFixed(2);
+      const installmentPaise = Math.round((Number(group.chit_amount) / group.duration_months) * 100);
       for (let month = 1; month <= group.duration_months; month += 1) {
         await client.query(
-          `INSERT INTO installments (subscription_id, month_number, amount_due, status)
-           VALUES ($1, $2, $3, 'PENDING')`,
-          [subscription.id, month, installmentAmount]
+          `INSERT INTO installments (subscription_id, month_number, amount_due, amount_due_paise, status)
+           VALUES ($1, $2, $3, $4, 'PENDING')`,
+          [subscription.id, month, installmentAmount, installmentPaise]
         );
       }
 
-      return subscription;
+      // If group reached full subscriber capacity, transition status to RUNNING
+      if (ticketNumber >= group.duration_months) {
+        await client.query(`UPDATE chit_groups SET status = 'RUNNING' WHERE id = $1`, [groupId]);
+      }
+
+      return {
+        ...subscription,
+        chit_group_name: group.name,
+        chit_amount: Number(group.chit_amount),
+        duration_months: group.duration_months,
+        installment_amount: Number(installmentAmount),
+      };
     });
 
     res.status(201).json({ success: true, data: result });
@@ -70,7 +91,16 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const { rows } = await query(
-      `SELECT s.*, cg.name AS group_name, cg.chit_amount, cg.duration_months, cg.status AS group_status
+      `SELECT s.id, s.chit_group_id, s.user_id, s.ticket_number, s.subscriber_status, s.prized_month, s.joined_at,
+              cg.name AS group_name,
+              cg.name AS chit_group_name,
+              cg.chit_amount::float AS chit_amount,
+              cg.duration_months,
+              cg.duration_months AS total_installments,
+              cg.status AS group_status,
+              ROUND(cg.chit_amount / cg.duration_months, 2)::float AS installment_amount,
+              COALESCE((SELECT COUNT(*)::int FROM installments i WHERE i.subscription_id = s.id AND i.status = 'PAID'), 0) AS installments_paid,
+              COALESCE((SELECT SUM(amount)::float FROM ledger_entries le WHERE le.subscription_id = s.id AND le.entry_type = 'DIVIDEND'), 0) AS total_dividend_earned
        FROM subscriptions s
        JOIN chit_groups cg ON cg.id = s.chit_group_id
        WHERE s.user_id = $1
@@ -125,4 +155,4 @@ router.get(
   })
 );
 
-module.exports = { router, joinRouter };
+export { router, joinRouter };

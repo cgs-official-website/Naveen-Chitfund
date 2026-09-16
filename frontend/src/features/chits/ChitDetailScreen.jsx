@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,30 +26,67 @@ export const ChitDetailScreen = ({
   onNavigateToAuction,
 }) => {
   const { theme, typography } = useTheme();
-  const { availableGroups } = useAppStore();
+  const { availableGroups, selectedGroupDetails, fetchChitGroupDetails } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('schedule');
   const [selectedDocPreview, setSelectedDocPreview] = useState(null);
 
-  const group = availableGroups.find((g) => g.id === groupId) || availableGroups[0];
-
-  const subscribersList = Array.from(
-    { length: group.duration_months },
-    (_, i) => {
-      const ticket = i + 1;
-      let status = 'NPS';
-      if (ticket === 1) status = 'PS';
-      else if (ticket === 2) status = 'PS';
-      else if (ticket === 3) status = 'PS';
-      else if (ticket === 7) status = 'NPS';
-      else if (ticket === 14) status = 'SB';
-      return {
-        ticket,
-        name: ticket === 7 ? 'You (Mohamed Asfaque)' : `Subscriber #${ticket}`,
-        status,
-      };
+  useEffect(() => {
+    if (groupId) {
+      fetchChitGroupDetails(groupId);
     }
-  );
+  }, [groupId, fetchChitGroupDetails]);
+
+  const group =
+    (selectedGroupDetails && selectedGroupDetails.id === groupId ? selectedGroupDetails : null) ||
+    availableGroups.find((g) => g.id === groupId) ||
+    availableGroups[0];
+
+  if (!group) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.surface.base, padding: 24, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[typography.h3, { color: theme.text.primary }]}>No Chit Group Selected</Text>
+        <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 8, marginBottom: 20 }]}>
+          No registered chit group is currently selected. Total groups: 0.
+        </Text>
+        <Button title="Back to Explore" variant="outline" onPress={onBack} />
+      </View>
+    );
+  }
+
+  const liveSubs = group.subscriptions;
+  const subscribersList =
+    liveSubs && liveSubs.length > 0
+      ? Array.from({ length: group.duration_months }, (_, i) => {
+          const ticket = i + 1;
+          const enrolled = liveSubs.find((s) => s.ticket_number === ticket);
+          if (enrolled) {
+            return {
+              ticket,
+              name: enrolled.subscriber_name || `Subscriber #${ticket}`,
+              status: enrolled.subscriber_status || 'NPS',
+            };
+          }
+          return {
+            ticket,
+            name: `Slot #${ticket} (Available)`,
+            status: 'NPS',
+          };
+        })
+      : Array.from({ length: group.duration_months }, (_, i) => {
+          const ticket = i + 1;
+          let status = 'NPS';
+          if (ticket === 1) status = 'PS';
+          else if (ticket === 2) status = 'PS';
+          else if (ticket === 3) status = 'PS';
+          else if (ticket === 7) status = 'NPS';
+          else if (ticket === 14) status = 'SB';
+          return {
+            ticket,
+            name: ticket === 7 ? 'You (Subscriber)' : `Subscriber #${ticket}`,
+            status,
+          };
+        });
 
   const installments = Array.from({ length: group.duration_months }, (_, i) => {
     const month = i + 1;

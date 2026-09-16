@@ -1,4 +1,4 @@
-const { ApiError } = require('../middleware/errorHandler');
+import { ApiError } from '../middleware/errorHandler.js';
 
 /** Validate `req.body` against a zod schema, throwing a 400 ApiError on failure. */
 function validateBody(schema) {
@@ -32,4 +32,4 @@ function paginatedResponse(rows, total, page, limit) {
   };
 }
 
-module.exports = { validateBody, getPagination, paginatedResponse, ApiError };
+export { validateBody, getPagination, paginatedResponse, ApiError };

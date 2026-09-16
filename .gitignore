@@ -34,3 +34,12 @@ logs/
 *.log
 scratch/
 tmp/
+graphify-out/
+
+# Root local reports & scripts
+PROJECT_*.md
+WORKFLOW.md
+docker-compose.yml
+logo.jpeg
+/package.json
+/run-dev.js

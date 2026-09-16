@@ -1,17 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
+  Image,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../core/theme/ThemeProvider';
 import { useBreakpoint } from '../core/responsive/useBreakpoint';
 import { useAppStore } from '../store/useAppStore';
+import { apiClient, getStoredToken, setAuthToken } from '../core/networking/apiClient';
 
 // Screens
+import { SplashScreen } from '../features/splash/SplashScreen';
+import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
 import { HomeScreen } from '../features/dashboard/HomeScreen';
 import { ChitDiscoveryScreen } from '../features/chits/ChitDiscoveryScreen';
 import { ChitDetailScreen } from '../features/chits/ChitDetailScreen';
@@ -36,17 +42,87 @@ import {
   Building,
   Layers,
   ShieldCheck,
+  Coins,
+  Moon,
+  Sun,
 } from 'lucide-react-native';
 
 export const RootNavigator = () => {
-  const { theme, typography } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { theme, typography, isDark, toggleTheme } = useTheme();
   const { isTablet, isTabletLandscape } = useBreakpoint();
-  const { user } = useAppStore();
+  const { user, login } = useAppStore();
 
+  const [appStage, setAppStage] = useState('splash'); // 'splash' | 'onboarding' | 'auth' | 'app'
   const [currentTab, setCurrentTab] = useState('home');
-  const [selectedChitGroupId, setSelectedChitGroupId] = useState('grp-tg-101');
+  const [selectedChitGroupId, setSelectedChitGroupId] = useState('');
+
+  // Silent session restoration on app boot
+  useEffect(() => {
+    async function restoreSession() {
+      try {
+        const storedToken = await getStoredToken();
+        if (storedToken) {
+          await setAuthToken(storedToken);
+          const res = await apiClient.get('/users/me');
+          if (res.data?.data?.id) {
+            const u = res.data.data;
+            login(
+              {
+                id: u.id,
+                phone: u.phone,
+                full_name: u.fullName,
+                role: u.role,
+                kyc_status:
+                  u.kycStatus === 'APPROVED'
+                    ? 'VERIFIED'
+                    : u.kycStatus === 'PENDING'
+                    ? 'PENDING'
+                    : 'NOT_STARTED',
+                is_nri: false,
+                biometric_enabled: true,
+              },
+              storedToken
+            );
+          }
+        }
+      } catch (err) {
+        console.log('Session restoration note:', err.message);
+        await setAuthToken(null);
+      }
+    }
+    restoreSession();
+  }, []);
 
   const isForeman = user?.role === 'admin';
+
+  // Screen Stage Gates: Splash -> Onboarding -> Auth -> App
+  if (appStage === 'splash') {
+    return (
+      <SplashScreen
+        onFinish={() => setAppStage(user?.id ? 'app' : 'onboarding')}
+      />
+    );
+  }
+
+  if (appStage === 'onboarding') {
+    return (
+      <OnboardingScreen
+        onComplete={() => setAppStage(user?.id ? 'app' : 'auth')}
+      />
+    );
+  }
+
+  if (appStage === 'auth') {
+    return (
+      <AuthScreen
+        onComplete={() => {
+          setAppStage('app');
+          setCurrentTab('home');
+        }}
+      />
+    );
+  }
 
   const navItems = [
     { key: 'home', label: 'Home', icon: Home },
@@ -59,6 +135,9 @@ export const RootNavigator = () => {
     { key: 'playground', label: 'Playground', icon: Layers },
     { key: 'profile', label: 'Profile', icon: User },
   ];
+
+  const topHeaderPadding = Math.max(insets.top, StatusBar.currentHeight || 0, 14);
+  const bottomBarPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 10);
 
   const renderScreen = () => {
     switch (currentTab) {
@@ -73,7 +152,7 @@ export const RootNavigator = () => {
             onNavigateToPayments={() => setCurrentTab('payments')}
             onNavigateToDiscovery={() => setCurrentTab('discovery')}
             onOpenDocs={() => {
-              setSelectedChitGroupId('grp-tg-101');
+              setSelectedChitGroupId('');
               setCurrentTab('chitDetail');
             }}
           />
@@ -105,7 +184,7 @@ export const RootNavigator = () => {
               setCurrentTab('chitDetail');
             }}
             onOpenDocs={() => {
-              setSelectedChitGroupId('grp-tg-101');
+              setSelectedChitGroupId('');
               setCurrentTab('chitDetail');
             }}
           />
@@ -127,13 +206,26 @@ export const RootNavigator = () => {
       case 'notifications':
         return <NotificationsScreen />;
       case 'profile':
-        return <ProfileScreen onLogout={() => setCurrentTab('auth')} />;
+        return (
+          <ProfileScreen
+            onLogout={() => setAppStage('auth')}
+            onReplaySplash={() => setAppStage('splash')}
+            onReplayOnboarding={() => setAppStage('onboarding')}
+          />
+        );
       case 'foreman':
         return <ForemanDashboardScreen />;
       case 'playground':
         return <ComponentPlayground />;
       case 'auth':
-        return <AuthScreen onComplete={() => setCurrentTab('home')} />;
+        return (
+          <AuthScreen
+            onComplete={() => {
+              setAppStage('app');
+              setCurrentTab('home');
+            }}
+          />
+        );
       default:
         return (
           <HomeScreen
@@ -148,30 +240,78 @@ export const RootNavigator = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.surface.base }]}>
-      <View style={[styles.topAppHeader, { backgroundColor: theme.surface.card, borderBottomColor: theme.surface.border }]}>
+    <View style={[styles.safeArea, { backgroundColor: theme.surface.base }]}>
+      <View
+        style={[
+          styles.topAppHeader,
+          {
+            backgroundColor: isDark ? '#2D0A14' : '#38000C',
+            borderBottomColor: 'rgba(212, 175, 55, 0.3)',
+            paddingTop: topHeaderPadding,
+            height: 56 + topHeaderPadding,
+            paddingLeft: 16 + insets.left,
+            paddingRight: 16 + insets.right,
+            shadowColor: isDark ? '#000000' : '#38000C',
+          },
+        ]}
+      >
+        {/* Left: Brand Identity */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={[styles.logoIcon, { backgroundColor: theme.maroon.primary }]}>
-            <ShieldCheck size={18} color={theme.gold.accent} />
+          <View style={styles.logoBadge}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoIcon}
+              resizeMode="contain"
+            />
           </View>
-          <Text style={[typography.h2, { color: theme.text.primary, marginLeft: 10 }]}>
-            ChitTech
-          </Text>
-          <View style={[styles.tagPill, { backgroundColor: theme.gold.accent + '20', borderColor: theme.gold.accent + '50' }]}>
-            <Text style={[typography.caption, { color: theme.isDark ? theme.gold.accent : '#997300', fontWeight: '700' }]}>
-              {isForeman ? 'Foreman Mode' : 'Subscriber'}
+          <View style={{ marginLeft: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.topBrandName}>Naveen Chit Fund</Text>
+              <Coins size={12} color="#D4AF37" style={{ marginLeft: 4 }} />
+            </View>
+            <Text style={styles.topSubBrand}>
+              NAVEEN CHITS · GOVT REG
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={() => setCurrentTab(currentTab === 'auth' ? 'home' : 'auth')}
-          style={[styles.authToggleBtn, { borderColor: theme.surface.border }]}
-        >
-          <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>
-            {currentTab === 'auth' ? 'Exit eKYC' : 'eKYC Onboarding'}
-          </Text>
-        </TouchableOpacity>
+        {/* Right: Controls & Account */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* Role Mode Pill */}
+          <View style={[styles.tagPill, { backgroundColor: isForeman ? 'rgba(212, 175, 55, 0.25)' : 'rgba(255, 255, 255, 0.12)' }]}>
+            <Text style={styles.tagPillText}>
+              {isForeman ? 'Foreman' : 'Subscriber'}
+            </Text>
+          </View>
+
+          {/* Theme Toggle Button */}
+          <TouchableOpacity
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            style={styles.headerIconBtn}
+          >
+            {isDark ? (
+              <Sun size={15} color="#D4AF37" />
+            ) : (
+              <Moon size={15} color="#F0E6D2" />
+            )}
+          </TouchableOpacity>
+
+          {/* Profile Icon Button */}
+          <TouchableOpacity
+            onPress={() => {
+              if (user?.id) {
+                setCurrentTab('profile');
+              } else {
+                setAppStage('auth');
+              }
+            }}
+            activeOpacity={0.7}
+            style={styles.profileIconBtn}
+          >
+            <User size={16} color="#D4AF37" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.mainLayout}>
@@ -182,6 +322,8 @@ export const RootNavigator = () => {
               {
                 backgroundColor: theme.surface.card,
                 borderRightColor: theme.surface.border,
+                paddingLeft: insets.left,
+                paddingBottom: insets.bottom,
               },
             ]}
           >
@@ -235,34 +377,97 @@ export const RootNavigator = () => {
           </View>
         )}
 
-        <View style={styles.screenContainer}>{renderScreen()}</View>
+        <View
+          style={[
+            styles.screenContainer,
+            {
+              paddingLeft: insets.left,
+              paddingRight: insets.right,
+            },
+          ]}
+        >
+          {renderScreen()}
+        </View>
       </View>
 
       {!isTablet && (
         <View
           style={[
-            styles.bottomTabBar,
+            styles.floatingTabBar,
             {
-              backgroundColor: theme.surface.card,
-              borderTopColor: theme.surface.border,
+              backgroundColor: isDark ? '#1C0D15' : '#FFFFFF',
+              bottom: bottomBarPadding + 8,
+              marginLeft: 14 + insets.left,
+              marginRight: 14 + insets.right,
+              shadowColor: isDark ? '#000000' : '#38000C',
+              borderColor: isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.35)',
+              elevation: isDark ? 16 : 10,
             },
           ]}
         >
           {navItems.slice(0, 5).map((item) => {
             const IconComponent = item.icon;
             const isSelected = currentTab === item.key;
+            const isSpecial = item.isSpecial; // Center Auction Button
+
+            if (isSpecial) {
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  onPress={() => setCurrentTab(item.key)}
+                  activeOpacity={0.85}
+                  style={styles.specialTabItem}
+                >
+                  <View
+                    style={[
+                      styles.specialIconCircle,
+                      {
+                        backgroundColor: '#38000C',
+                        borderColor: isSelected ? '#FFD700' : '#D4AF37',
+                        shadowColor: '#D4AF37',
+                        shadowOpacity: isSelected ? 0.6 : 0.35,
+                        shadowRadius: isSelected ? 12 : 8,
+                        transform: [{ scale: isSelected ? 1.08 : 1.0 }],
+                      },
+                    ]}
+                  >
+                    <IconComponent size={23} color={isSelected ? '#FFD700' : '#D4AF37'} />
+                  </View>
+                  <Text
+                    style={[
+                      typography.caption,
+                      {
+                        color: isSelected ? '#D4AF37' : isDark ? '#E5D4B8' : '#38000C',
+                        fontWeight: '800',
+                        fontSize: 10,
+                        marginTop: 2,
+                        letterSpacing: 0.3,
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {isSelected && <View style={styles.specialActivePill} />}
+                </TouchableOpacity>
+              );
+            }
+
             return (
               <TouchableOpacity
                 key={item.key}
                 onPress={() => setCurrentTab(item.key)}
                 activeOpacity={0.7}
-                style={styles.tabItem}
+                style={[
+                  styles.tabItem,
+                  isSelected && styles.tabItemSelected,
+                ]}
               >
                 <View
                   style={[
                     styles.tabIconWrapper,
                     isSelected && {
-                      backgroundColor: item.isSpecial ? theme.maroon.primary : theme.maroon.primary + '15',
+                      backgroundColor: isDark ? 'rgba(212, 175, 55, 0.22)' : 'rgba(56, 0, 12, 0.08)',
+                      borderColor: isDark ? 'rgba(212, 175, 55, 0.4)' : 'rgba(56, 0, 12, 0.15)',
                     },
                   ]}
                 >
@@ -270,10 +475,10 @@ export const RootNavigator = () => {
                     size={20}
                     color={
                       isSelected
-                        ? item.isSpecial
-                          ? '#FFFFFF'
-                          : theme.maroon.primary
-                        : theme.text.secondary
+                        ? theme.maroon.primary
+                        : isDark
+                        ? '#A89280'
+                        : '#7A6B63'
                     }
                   />
                 </View>
@@ -281,21 +486,33 @@ export const RootNavigator = () => {
                   style={[
                     typography.caption,
                     {
-                      color: isSelected ? theme.maroon.primary : theme.text.secondary,
-                      fontWeight: isSelected ? '700' : '500',
-                      fontSize: 10,
+                      color: isSelected
+                        ? theme.maroon.primary
+                        : isDark
+                        ? '#8A7A70'
+                        : '#8A7A70',
+                      fontWeight: isSelected ? '800' : '500',
+                      fontSize: 10.5,
                       marginTop: 2,
                     },
                   ]}
                 >
                   {item.label}
                 </Text>
+                {isSelected && (
+                  <View
+                    style={[
+                      styles.activeIndicatorLine,
+                      { backgroundColor: theme.maroon.primary },
+                    ]}
+                  />
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -304,32 +521,75 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topAppHeader: {
-    height: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
     borderBottomWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  logoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  logoBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  logoIcon: {
+    width: 30,
+    height: 30,
+  },
+  topBrandName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  topSubBrand: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#D4AF37',
+    letterSpacing: 1.2,
+    marginTop: 1,
   },
   tagPill: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginLeft: 10,
-  },
-  authToggleBtn: {
-    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+  },
+  tagPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#D4AF37',
+    letterSpacing: 0.3,
+  },
+  headerIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
     borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mainLayout: {
     flex: 1,
@@ -354,21 +614,68 @@ const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
   },
-  bottomTabBar: {
-    height: 60,
+  floatingTabBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingBottom: 4,
+    alignItems: 'center',
+    height: 66,
+    borderRadius: 28,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 6,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 5,
+    paddingBottom: 4,
+    borderRadius: 20,
+  },
+  tabItemSelected: {
+    // Subtle elevated feel on select
   },
   tabIconWrapper: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIndicatorLine: {
+    width: 16,
+    height: 2.5,
+    borderRadius: 1.5,
+    marginTop: 3,
+  },
+  specialActivePill: {
+    width: 14,
+    height: 2.5,
+    borderRadius: 1.5,
+    backgroundColor: '#D4AF37',
+    marginTop: 2,
+  },
+  specialTabItem: {
+    flex: 1.15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -20, // Elevated float above the bar
+  },
+  specialIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
   twoPaneContainer: {
     flex: 1,

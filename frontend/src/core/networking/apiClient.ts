@@ -2,11 +2,8 @@ import axios, { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-// Localhost URL for Android emulator is 10.0.2.2; for iOS simulator or web is localhost
-const BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:4000/api/v1',
-  default: 'http://localhost:4000/api/v1',
-});
+// With 'adb reverse tcp:4000 tcp:4000', localhost:4000 routes over USB directly to computer
+const BASE_URL = 'http://localhost:4000/api/v1';
 
 const TOKEN_KEY = 'chittech_jwt_token';
 

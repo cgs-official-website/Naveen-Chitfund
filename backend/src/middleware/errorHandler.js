@@ -32,4 +32,4 @@ function notFoundHandler(req, res) {
   res.status(404).json({ success: false, error: `No route: ${req.method} ${req.originalUrl}` });
 }
 
-module.exports = { asyncHandler, ApiError, errorHandler, notFoundHandler };
+export { asyncHandler, ApiError, errorHandler, notFoundHandler };
