@@ -7,6 +7,7 @@ import {
   Layers,
   ArrowRight,
   Calculator,
+  Lock,
   FileCheck2,
   Percent,
   ShieldCheck,
