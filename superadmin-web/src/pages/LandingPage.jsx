@@ -7,7 +7,6 @@ import {
   Layers,
   ArrowRight,
   Calculator,
-  Lock,
   FileCheck2,
   Percent,
   ShieldCheck,
@@ -79,7 +78,7 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 1. TOP NAVBAR                                             */}
         {/* ========================================================= */}
-        <header className="px-6 sm:px-10 lg:px-12 py-5 sm:py-6 flex items-center justify-between border-b border-stone-200/60 dark:border-maroon-900/50 bg-white/70 dark:bg-[#190C13]/90 backdrop-blur-md sticky top-0 z-50 transition-colors">
+        <header className="px-6 sm:px-10 lg:px-12 py-4 sm:py-5 flex items-center justify-between border-b border-stone-200/60 dark:border-maroon-900/50 bg-white/70 dark:bg-[#190C13]/90 backdrop-blur-md sticky top-0 z-50 transition-colors">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <img
@@ -93,7 +92,7 @@ export const LandingPage = () => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-8 text-[13px] font-semibold text-stone-600 dark:text-stone-300">
+          <nav className="hidden lg:flex items-center gap-6 xl:gap-8 text-[13px] font-semibold text-stone-600 dark:text-stone-300">
             <a href="#features" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Features</a>
             <a href="#how-it-works" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">How It Works</a>
             <a href="#app-showcase" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Mobile App</a>
@@ -103,11 +102,11 @@ export const LandingPage = () => {
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-2 sm:gap-4">
-            {/* Theme Toggle Button */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Theme Toggle Button - Icon Only */}
             <button
               onClick={toggleTheme}
-              className="p-2 sm:px-3 sm:py-2 rounded-full border border-stone-200 dark:border-maroon-800/80 bg-white/80 dark:bg-[#25121D] text-stone-700 dark:text-gold-300 hover:bg-stone-100 dark:hover:bg-[#381B2D] transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-stone-200 dark:border-maroon-800/80 bg-white/90 dark:bg-[#25121D] text-stone-700 dark:text-gold-300 hover:bg-stone-100 dark:hover:bg-[#381B2D] transition flex items-center justify-center shadow-xs cursor-pointer shrink-0"
               aria-label="Toggle dark/light theme"
               title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
@@ -116,23 +115,14 @@ export const LandingPage = () => {
               ) : (
                 <Moon className="w-4 h-4 text-[#7A1F3D]" />
               )}
-              <span className="text-xs font-bold hidden sm:inline">
-                {isDark ? 'Light Mode' : 'Dark Mode'}
-              </span>
             </button>
 
+            {/* Login Button */}
             <Link
               to="/chit"
-              className="text-xs sm:text-sm font-bold text-stone-700 dark:text-stone-200 hover:text-[#7A1F3D] dark:hover:text-gold-300 transition px-2 py-1"
+              className="px-5 py-2.5 rounded-full bg-[#4E1327] hover:bg-[#7A1F3D] dark:bg-gold-500 dark:hover:bg-gold-400 text-[#FFFDF9] dark:text-navy-950 font-bold text-xs uppercase tracking-wider shadow-sm transition-transform active:scale-95 shrink-0"
             >
               Login
-            </Link>
-            <Link
-              to="/chit"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4E1327] hover:bg-[#7A1F3D] dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-950 text-[#FFFDF9] font-bold text-xs uppercase tracking-wider shadow-md shadow-maroon-900/10 transition-transform active:scale-95"
-            >
-              <Lock className="w-3.5 h-3.5 text-gold-400 dark:text-navy-950" />
-              Superadmin Portal
             </Link>
           </div>
         </header>
