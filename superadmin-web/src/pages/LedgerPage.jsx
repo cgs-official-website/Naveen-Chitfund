@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { api } from '../api/client';
@@ -63,7 +63,7 @@ export const LedgerPage = () => {
         {
             header: 'Integer-Paise Precision',
             accessorKey: 'amount_paise',
-            cell: (item) => (<span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+            cell: (item) => (<span className="font-mono text-xs text-stone-500 dark:text-stone-400">
           {Number(item.amount_paise).toLocaleString()} paise
         </span>),
         },
@@ -78,7 +78,7 @@ export const LedgerPage = () => {
     return (<div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Immutable Double-Entry Ledger</h1>
+          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Immutable Double-Entry Ledger</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Zero-drift integer-paise financial bookkeeping for installments, dividends, and prize disbursals.
           </p>
@@ -90,7 +90,7 @@ export const LedgerPage = () => {
       </div>
 
       {/* Aggregate Totals Band */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-card bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 shadow-sm text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 shadow-sm text-xs">
         <div>
           <span className="text-slate-400 block font-semibold text-[10px] uppercase">Installments Inflow</span>
           <CurrencyText amount={totals.INSTALLMENT?.amountRupees || 0} className="text-base font-bold text-emerald-600 dark:text-emerald-400"/>
@@ -110,7 +110,7 @@ export const LedgerPage = () => {
       </div>
 
       {/* Filter Chips & Table */}
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4 space-y-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4 space-y-4">
         {/* Filter chips */}
         <div className="flex flex-wrap items-center gap-2">
           {['ALL', 'INSTALLMENT', 'DIVIDEND', 'PRIZE_PAYOUT', 'COMMISSION'].map((type) => (<button key={type} onClick={() => {
@@ -129,3 +129,4 @@ export const LedgerPage = () => {
       </div>
     </div>);
 };
+

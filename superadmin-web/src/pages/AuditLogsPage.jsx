@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { History, ChevronRight, ChevronDown } from 'lucide-react';
 import { api } from '../api/client';
@@ -32,13 +32,13 @@ export const AuditLogsPage = () => {
     const logs = data?.data || [];
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Tamper-Evident System Audit Trail</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Tamper-Evident System Audit Trail</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Cryptographically auditable event history tracking state-changing mutations across subscribers, foremen, and superadmins.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4 space-y-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4 space-y-4">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -55,8 +55,8 @@ export const AuditLogsPage = () => {
         </FilterBar>
 
         {isLoading ? (<div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-16 rounded-card"/>))}
-          </div>) : logs.length === 0 ? (<EmptyState title="No Audit Logs" description="No events match your criteria." icon={History}/>) : (<div className="divide-y divide-slate-100 dark:divide-navy-800/80">
+            {Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-16 rounded-2xl"/>))}
+          </div>) : logs.length === 0 ? (<EmptyState title="No Audit Logs" description="No events match your criteria." icon={History}/>) : (<div className="divide-y divide-stone-100 dark:divide-maroon-950/80/80">
             {logs.map((log) => {
                 const isExpanded = expandedLogId === log.id;
                 return (<div key={log.id} className="py-3">
@@ -114,3 +114,4 @@ export const AuditLogsPage = () => {
       </div>
     </div>);
 };
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { KeyRound, Shield, Moon, Sun, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../api/client';
@@ -59,14 +59,14 @@ export const SettingsPage = () => {
     };
     return (<div className="space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Superadmin Governance Settings</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Superadmin Governance Settings</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Manage root administrative security credentials, UI theme preferences, and statutory parameters.
         </p>
       </div>
 
       {/* Profile Card */}
-      <div className="p-6 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm space-y-4">
+      <div className="p-6 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm space-y-4">
         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Shield className="w-4 h-4 text-gold-500"/> Administrative Profile
         </h3>
@@ -83,7 +83,7 @@ export const SettingsPage = () => {
       </div>
 
       {/* Change Password Form */}
-      <div className="p-6 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm space-y-5">
+      <div className="p-6 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm space-y-5">
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-gold-500"/> Security Credential Rotation
@@ -108,21 +108,21 @@ export const SettingsPage = () => {
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Current Password
             </label>
-            <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-900 dark:text-slate-100"/>
+            <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-stone-900 dark:text-stone-100"/>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               New Password (minimum 12 characters)
             </label>
-            <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-900 dark:text-slate-100"/>
+            <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-stone-900 dark:text-stone-100"/>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Confirm New Password
             </label>
-            <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-900 dark:text-slate-100"/>
+            <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2.5 text-sm bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-stone-900 dark:text-stone-100"/>
           </div>
 
           <button type="submit" disabled={changePasswordMutation.isPending} className="px-5 py-2.5 rounded-input bg-gold-500 hover:bg-gold-400 text-navy-950 font-bold text-xs shadow-sm transition disabled:opacity-50">
@@ -132,9 +132,9 @@ export const SettingsPage = () => {
       </div>
 
       {/* Theme Preference */}
-      <div className="p-6 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm flex items-center justify-between">
+      <div className="p-6 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Interface Theme</h3>
+          <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Interface Theme</h3>
           <p className="text-xs text-slate-500 mt-0.5">Toggle between dark and light appearance.</p>
         </div>
         <button onClick={toggleTheme} className="px-4 py-2 rounded-input border border-slate-200 dark:border-navy-700 flex items-center gap-2 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-navy-800 transition">
@@ -144,9 +144,9 @@ export const SettingsPage = () => {
       </div>
 
       {/* Platform Statutory Limits View */}
-      <div className="p-6 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm space-y-4">
+      <div className="p-6 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm space-y-4">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Statutory Platform Parameters</h3>
+          <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Statutory Platform Parameters</h3>
           <p className="text-xs text-slate-500 mt-0.5">Fixed statutory limits mandated by Central and State Chit Fund Acts.</p>
         </div>
 
@@ -191,3 +191,4 @@ export const SettingsPage = () => {
       </div>
     </div>);
 };
+

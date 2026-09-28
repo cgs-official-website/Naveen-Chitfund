@@ -56,26 +56,26 @@ export const Sidebar = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-navy-950 text-slate-300 border-r border-navy-800 transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-[#14080F] text-slate-300 border-r border-[#291220] transition-all duration-300 ease-in-out ${
           mobileActive
             ? 'translate-x-0 w-64'
             : '-translate-x-full lg:translate-x-0'
         } ${isDesktopOpen ? 'lg:w-64' : 'lg:w-20'}`}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-navy-800/80">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-[#291220]">
           <div className="flex items-center gap-3 overflow-hidden">
             <img
               src="/logo.png"
               alt="Naveen Chit Logo"
-              className="w-9 h-9 rounded-lg object-contain shrink-0"
+              className="w-9 h-9 rounded-xl object-contain shrink-0 border border-gold-400/30 shadow-xs"
             />
             {(isDesktopOpen || mobileActive) && (
               <div className="whitespace-nowrap transition-opacity duration-200">
-                <span className="font-bold text-white text-base tracking-wide">
+                <span className="font-extrabold text-white text-[15px] tracking-wide block">
                   NAVEEN CHIT
                 </span>
-                <span className="block text-[10px] text-gold-400 font-semibold tracking-widest uppercase">
+                <span className="block text-[9px] text-gold-400 font-bold tracking-widest uppercase">
                   Govt Regulated ROSCA
                 </span>
               </div>
@@ -93,7 +93,7 @@ export const Sidebar = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const showLabel = isDesktopOpen || mobileActive;
@@ -105,15 +105,15 @@ export const Sidebar = ({
                 title={!isDesktopOpen ? item.label : undefined}
                 className={({ isActive }) =>
                   `flex items-center ${
-                    showLabel ? 'justify-start gap-3.5 px-3' : 'justify-center px-0'
-                  } py-3 rounded-lg text-xs font-semibold tracking-wide transition-all min-h-[44px] ${
+                    showLabel ? 'justify-start gap-3.5 px-3.5' : 'justify-center px-0'
+                  } py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all min-h-[42px] ${
                     isActive
-                      ? 'bg-gold-500 text-navy-950 shadow-sm font-bold'
-                      : 'text-slate-300 hover:bg-navy-900 hover:text-gold-300 active:bg-navy-800'
+                      ? 'bg-gradient-to-r from-gold-500 to-gold-400 text-maroon-950 font-bold shadow-md shadow-gold-500/25 ring-1 ring-gold-400/40'
+                      : 'text-stone-300 hover:bg-[#25101C] hover:text-gold-300 active:bg-[#301625]'
                   }`
                 }
               >
-                <Icon className="w-5 h-5 shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" />
                 {showLabel && (
                   <span className="whitespace-nowrap">{item.label}</span>
                 )}

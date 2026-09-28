@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { api } from '../api/client';
@@ -86,7 +86,7 @@ export const PaymentsPage = () => {
     return (<div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Payments & Gateway Audit</h1>
+          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Payments & Gateway Audit</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Reconcile subscriber installment collections with Razorpay payment gateway signatures.
           </p>
@@ -97,7 +97,7 @@ export const PaymentsPage = () => {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -119,3 +119,4 @@ export const PaymentsPage = () => {
       </div>
     </div>);
 };
+

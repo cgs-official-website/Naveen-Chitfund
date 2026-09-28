@@ -16,7 +16,7 @@ export const AppShell = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-navy-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#F4EFE6] dark:bg-[#0D0509] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-300">
       {/* Sidebar with desktop expand/collapse and mobile drawer */}
       <Sidebar
         isMobileOpen={mobileOpen}

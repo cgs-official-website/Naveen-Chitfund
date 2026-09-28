@@ -3,15 +3,16 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  html, body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
     @apply antialiased bg-slate-50 text-slate-900 dark:bg-navy-950 dark:text-slate-100;
   }
 }
 
 /* Custom scrollbar for tables and drawers */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -19,9 +20,19 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-navy-800 rounded;
+  @apply bg-stone-300 dark:bg-maroon-900 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-navy-700;
+  @apply bg-stone-400 dark:bg-maroon-800;
+}
+
+/* Form input focus ring - brand gold */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+/* Selection brand tint */
+::selection {
+  @apply bg-gold-300 text-maroon-950;
 }

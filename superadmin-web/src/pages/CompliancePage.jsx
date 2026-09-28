@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Clock, Download } from 'lucide-react';
 import { api } from '../api/client';
@@ -39,18 +39,18 @@ export const CompliancePage = () => {
     });
     return (<div className="space-y-8">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Statutory Compliance & Regulatory Filing</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Statutory Compliance & Regulatory Filing</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Monitor Section 18 48-hour filing deadlines, generate Form XIV minutes, and inspect GST invoices.
         </p>
       </div>
 
       {/* 48-Hour Filing Tracker Section */}
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-5 space-y-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Clock className="w-5 h-5 text-gold-500"/>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
               Section 18 Filing Tracker (48-Hour Statutory Window)
             </h2>
           </div>
@@ -58,10 +58,10 @@ export const CompliancePage = () => {
         </div>
 
         <div className="space-y-3">
-          {(trackerData || []).map((t) => (<div key={t.id} className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs">
+          {(trackerData || []).map((t) => (<div key={t.id} className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                  <span className="font-bold text-sm text-stone-900 dark:text-stone-100">
                     {t.group_name} (Month #{t.month_number})
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.isOverdue ? 'bg-rose-500 text-white' : 'bg-amber-500 text-navy-950'}`}>
@@ -91,15 +91,15 @@ export const CompliancePage = () => {
             <Download className="w-4 h-4"/> Print / Export PDF
           </button>}>
         {isFormXivLoading ? (<div className="p-8 text-center text-slate-400 text-xs animate-pulse">Generating Form XIV...</div>) : (<div className="space-y-4 font-mono text-xs">
-            <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card space-y-1.5">
+            <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl space-y-1.5">
               <div className="font-bold text-sm text-gold-600 dark:text-gold-400">{formXivData?.formName}</div>
               <div className="text-slate-500">Statutory Reference: {formXivData?.statutoryReference}</div>
               <div className="text-slate-500">Filing Token: {formXivData?.minutesFilingReference}</div>
               <div className="text-slate-500">Conducted: {formXivData?.auctionProceedings?.conductedAt}</div>
             </div>
 
-            <div className="border border-slate-200 dark:border-navy-800 rounded-card p-4 space-y-2">
-              <span className="font-bold block text-slate-900 dark:text-slate-100">Proceedings Summary</span>
+            <div className="border border-slate-200 dark:border-navy-800 rounded-2xl p-4 space-y-2">
+              <span className="font-bold block text-stone-900 dark:text-stone-100">Proceedings Summary</span>
               <p>Chit Amount: <CurrencyText amount={formXivData?.chitGroup?.chitAmount}/></p>
               <p>Winning Bid Discount: {formXivData?.auctionProceedings?.winningBidDiscountPct}% (<CurrencyText amount={formXivData?.auctionProceedings?.discountOfferedRupees}/>)</p>
               <p>Foreman Commission (5%): <CurrencyText amount={formXivData?.auctionProceedings?.foremanCommissionRupees}/></p>
@@ -158,3 +158,4 @@ export const CompliancePage = () => {
       </Modal>
     </div>);
 };
+

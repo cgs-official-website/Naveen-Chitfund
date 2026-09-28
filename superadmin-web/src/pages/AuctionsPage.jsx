@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import { Eye, AlertOctagon } from 'lucide-react';
@@ -140,13 +140,13 @@ export const AuctionsPage = () => {
     const currentLowest = liveBids.length ? liveBids[0].bidPct : activeAuction?.winning_bid_pct || 5;
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Live Reverse Auctions Monitor</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Live Reverse Auctions Monitor</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Real-time oversight of subscriber bidding rooms, statutory caps, and dividend allocation.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
         <FilterBar searchQuery="" onSearchChange={() => { }} searchPlaceholder="Filter auctions...">
           <select value={statusFilter} onChange={(e) => {
             setStatusFilter(e.target.value);
@@ -168,10 +168,10 @@ export const AuctionsPage = () => {
       <Modal isOpen={Boolean(selectedAuctionId)} onClose={() => setSelectedAuctionId(null)} title={activeAuction?.group_name ? `Auction Monitor: ${activeAuction.group_name}` : 'Live Auction Room'} maxWidth="2xl">
         <div className="space-y-6">
           {/* Room Header Info */}
-          <div className="p-4 rounded-card bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 grid grid-cols-3 gap-4 text-xs">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 grid grid-cols-3 gap-4 text-xs">
             <div>
               <span className="text-slate-400 block font-semibold">Chit Value</span>
-              <CurrencyText amount={activeAuction?.chit_amount} className="text-base font-bold text-slate-900 dark:text-slate-100"/>
+              <CurrencyText amount={activeAuction?.chit_amount} className="text-base font-bold text-stone-900 dark:text-stone-100"/>
             </div>
             <div>
               <span className="text-slate-400 block font-semibold">Current Leading Discount</span>
@@ -196,7 +196,7 @@ export const AuctionsPage = () => {
 
           {/* Live Feed Stream */}
           <div className="space-y-2 max-h-72 overflow-y-auto">
-            {liveBids.length === 0 ? (<div className="p-8 text-center text-xs text-slate-400">Waiting for subscriber bids...</div>) : (liveBids.map((b, idx) => (<div key={idx} className={`p-3 rounded-card border flex items-center justify-between text-xs transition ${idx === 0
+            {liveBids.length === 0 ? (<div className="p-8 text-center text-xs text-slate-400">Waiting for subscriber bids...</div>) : (liveBids.map((b, idx) => (<div key={idx} className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition ${idx === 0
                 ? 'bg-gold-50/50 dark:bg-gold-500/10 border-gold-500/40'
                 : 'bg-white dark:bg-navy-950 border-slate-100 dark:border-navy-800'}`}>
                   <div className="flex items-center gap-3">
@@ -227,3 +227,4 @@ export const AuctionsPage = () => {
         }}/>
     </div>);
 };
+

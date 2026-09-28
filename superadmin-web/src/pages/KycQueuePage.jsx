@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserCheck, XCircle, CheckCircle, FileText } from 'lucide-react';
 import { api } from '../api/client';
@@ -35,7 +35,7 @@ export const KycQueuePage = () => {
     const activeUser = selectedUser || users[0] || null;
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Member eKYC Verification Queue</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Member eKYC Verification Queue</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Validate Aadhaar & PAN credentials in compliance with the DPDP Act 2023.
         </p>
@@ -43,18 +43,18 @@ export const KycQueuePage = () => {
 
       {users.length === 0 && !isLoading ? (<EmptyState title="All Caught Up!" description="There are currently no pending subscriber KYC applications awaiting manual review." icon={UserCheck}/>) : (<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Queue List (4 cols on lg) */}
-          <div className="lg:col-span-5 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4 space-y-3">
+          <div className="lg:col-span-5 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4 space-y-3">
             <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
               Pending Applications ({users.length})
             </h3>
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
               {users.map((u) => {
                 const isSelected = activeUser?.id === u.id;
-                return (<div key={u.id} onClick={() => setSelectedUser(u)} className={`p-3.5 rounded-card border cursor-pointer transition ${isSelected
+                return (<div key={u.id} onClick={() => setSelectedUser(u)} className={`p-3.5 rounded-2xl border cursor-pointer transition ${isSelected
                         ? 'border-gold-500 bg-gold-50/50 dark:bg-gold-500/10'
                         : 'border-slate-200 dark:border-navy-800 hover:border-slate-300 dark:hover:border-navy-700'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{u.full_name}</span>
+                      <span className="font-bold text-sm text-stone-900 dark:text-stone-100">{u.full_name}</span>
                       <StatusBadge status={u.kyc_status}/>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
@@ -67,11 +67,11 @@ export const KycQueuePage = () => {
           </div>
 
           {/* Right Column: Split Document Preview (7 cols on lg) */}
-          <div className="lg:col-span-7 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-6 flex flex-col justify-between">
+          <div className="lg:col-span-7 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-6 flex flex-col justify-between">
             {activeUser ? (<div className="space-y-6">
                 <div className="flex items-start justify-between border-b border-slate-100 dark:border-navy-800 pb-4">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">{activeUser.full_name}</h2>
+                    <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">{activeUser.full_name}</h2>
                     <p className="text-xs text-slate-500 font-mono mt-0.5">{activeUser.phone}</p>
                   </div>
                   <StatusBadge status={activeUser.kyc_status}/>
@@ -81,13 +81,13 @@ export const KycQueuePage = () => {
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div className="p-3 bg-slate-50 dark:bg-navy-950 rounded-lg">
                     <span className="text-slate-400 block font-semibold mb-1">Declared PAN Number</span>
-                    <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">
+                    <span className="font-mono text-sm font-bold text-stone-900 dark:text-stone-100">
                       {activeUser.pan_number || 'Not Submitted'}
                     </span>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-navy-950 rounded-lg">
                     <span className="text-slate-400 block font-semibold mb-1">Aadhaar Identity Ref</span>
-                    <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">
+                    <span className="font-mono text-sm font-bold text-stone-900 dark:text-stone-100">
                       {activeUser.aadhaar_number
                         ? `XXXX-XXXX-${String(activeUser.aadhaar_number).slice(-4)}`
                         : (activeUser.id ? `UID-${activeUser.id.substring(0, 8).toUpperCase()}` : 'Pending Submission')}
@@ -96,7 +96,7 @@ export const KycQueuePage = () => {
                 </div>
 
                 {/* Member Verification Details */}
-                <div className="p-5 rounded-card border border-slate-200 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-950/40 space-y-3">
+                <div className="p-5 rounded-2xl border border-slate-200 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-950/40 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-gold-500/20 text-gold-500 flex items-center justify-center shrink-0">
                       <FileText className="w-5 h-5"/>
@@ -163,3 +163,4 @@ export const KycQueuePage = () => {
         }}/>
     </div>);
 };
+

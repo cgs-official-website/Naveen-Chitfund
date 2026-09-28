@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { api } from '../api/client';
@@ -74,13 +74,13 @@ export const SubscribersPage = () => {
     const sub = detailData?.subscriber;
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Subscribers Roster</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Subscribers Roster</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Review participant identity, verified tickets, KYC credentials, and installment payments.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -104,7 +104,7 @@ export const SubscribersPage = () => {
       {/* Subscriber Detail Modal */}
       <Modal isOpen={Boolean(selectedSubId)} onClose={() => setSelectedSubId(null)} title={sub?.full_name ? `Subscriber: ${sub.full_name}` : 'Subscriber Profile'} maxWidth="2xl">
         {isDetailLoading ? (<div className="p-8 text-center text-xs text-slate-400 animate-pulse">Loading profile...</div>) : (<div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-card bg-slate-50 dark:bg-navy-950/60 border border-slate-100 dark:border-navy-800 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-navy-950/60 border border-slate-100 dark:border-navy-800 text-xs">
               <div>
                 <span className="text-slate-400 block font-semibold">Contact Phone</span>
                 <span className="font-mono text-slate-800 dark:text-slate-200">{sub?.phone}</span>
@@ -125,7 +125,7 @@ export const SubscribersPage = () => {
                 Active Chit Tickets ({detailData?.subscriptions?.length || 0})
               </h4>
               <div className="space-y-2">
-                {(detailData?.subscriptions || []).map((s) => (<div key={s.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                {(detailData?.subscriptions || []).map((s) => (<div key={s.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-slate-100 block">{s.group_name}</span>
                       <span className="text-slate-500">
@@ -143,7 +143,7 @@ export const SubscribersPage = () => {
                 Recent Installments Schedule ({detailData?.installments?.length || 0})
               </h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {(detailData?.installments || []).map((inst) => (<div key={inst.id} className="p-2.5 bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                {(detailData?.installments || []).map((inst) => (<div key={inst.id} className="p-2.5 bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                     <div>
                       <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                         Month #{inst.month_number} — {inst.group_name}
@@ -158,3 +158,4 @@ export const SubscribersPage = () => {
       </Modal>
     </div>);
 };
+

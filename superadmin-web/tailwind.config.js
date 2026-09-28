@@ -77,7 +77,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        poppins: ['Poppins', 'sans-serif'],
       },
       borderRadius: {
         card: '12px',

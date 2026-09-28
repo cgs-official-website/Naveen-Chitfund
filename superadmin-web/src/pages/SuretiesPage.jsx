@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
 import { api } from '../api/client';
@@ -68,7 +68,7 @@ export const SuretiesPage = () => {
     const submittedItems = items.filter((i) => i.status === 'SUBMITTED' || i.status === 'PENDING');
     const approvedItems = items.filter((i) => i.status === 'APPROVED');
     const disbursedItems = items.filter((i) => i.status === 'DISBURSED');
-    const renderCard = (item) => (<div key={item.id} onClick={() => setSelectedSuretyId(item.id)} className="p-4 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-xs hover:border-gold-500/50 cursor-pointer transition space-y-3">
+    const renderCard = (item) => (<div key={item.id} onClick={() => setSelectedSuretyId(item.id)} className="p-4 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-xs hover:border-gold-500/50 cursor-pointer transition space-y-3">
       <div className="flex items-start justify-between">
         <div>
           <span className="font-bold text-sm text-slate-900 dark:text-slate-100 block">
@@ -109,7 +109,7 @@ export const SuretiesPage = () => {
     </div>);
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Sureties & Prize Disbursals</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Sureties & Prize Disbursals</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Review co-guarantor credentials, CIBIL scores, and authorize direct RTGS prize payouts.
         </p>
@@ -127,7 +127,7 @@ export const SuretiesPage = () => {
           </div>
           <div className="space-y-3">
             {submittedItems.map(renderCard)}
-            {submittedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-card border border-dashed border-slate-200 dark:border-navy-800">
+            {submittedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-2xl border border-dashed border-slate-200 dark:border-navy-800">
                 No sureties awaiting approval
               </div>)}
           </div>
@@ -143,7 +143,7 @@ export const SuretiesPage = () => {
           </div>
           <div className="space-y-3">
             {approvedItems.map(renderCard)}
-            {approvedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-card border border-dashed border-slate-200 dark:border-navy-800">
+            {approvedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-2xl border border-dashed border-slate-200 dark:border-navy-800">
                 No approved claims awaiting disbursal
               </div>)}
           </div>
@@ -159,7 +159,7 @@ export const SuretiesPage = () => {
           </div>
           <div className="space-y-3">
             {disbursedItems.map(renderCard)}
-            {disbursedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-card border border-dashed border-slate-200 dark:border-navy-800">
+            {disbursedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-2xl border border-dashed border-slate-200 dark:border-navy-800">
                 No completed disbursals yet
               </div>)}
           </div>
@@ -169,10 +169,10 @@ export const SuretiesPage = () => {
       {/* Review Package Detail Modal */}
       <Modal isOpen={Boolean(selectedSuretyId)} onClose={() => setSelectedSuretyId(null)} title="Surety & Guarantor Security Package" maxWidth="2xl">
         {isDetailLoading ? (<div className="p-8 text-center text-xs text-slate-400 animate-pulse">Loading security package...</div>) : (<div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-card bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-navy-800 text-xs">
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-navy-950 border border-slate-100 dark:border-navy-800 text-xs">
               <div>
                 <span className="text-slate-400 block font-semibold">Winning Subscriber</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{detailData?.subscriber_name}</span>
+                <span className="font-bold text-stone-900 dark:text-stone-100">{detailData?.subscriber_name}</span>
                 <span className="text-slate-500 font-mono block">{detailData?.subscriber_phone}</span>
               </div>
               <div>
@@ -187,7 +187,7 @@ export const SuretiesPage = () => {
                 Co-Guarantors ({detailData?.guarantors?.length || 0})
               </h4>
               <div className="space-y-2">
-                {(detailData?.guarantors || []).map((g) => (<div key={g.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card grid grid-cols-3 gap-2 text-xs">
+                {(detailData?.guarantors || []).map((g) => (<div key={g.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl grid grid-cols-3 gap-2 text-xs">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-slate-100 block">{g.full_name}</span>
                       <span className="text-slate-400">{g.relationship || 'Co-Applicant'}</span>
@@ -212,7 +212,7 @@ export const SuretiesPage = () => {
               {detailData?.documents && detailData.documents.length > 0 ? (
                 <div className="space-y-2">
                   {detailData.documents.map((doc) => (
-                    <div key={doc.id} className="p-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                    <div key={doc.id} className="p-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2.5">
                         <FileText className="w-4 h-4 text-gold-500"/>
                         <div>
@@ -233,7 +233,7 @@ export const SuretiesPage = () => {
                   ))}
                 </div>
               ) : (
-                <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card text-xs text-slate-500">
+                <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl text-xs text-slate-500">
                   No uploaded document attachments on file for this surety package.
                 </div>
               )}
@@ -270,7 +270,7 @@ export const SuretiesPage = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Beneficiary Name</label>
-            <input type="text" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} className="w-full p-2.5 text-xs bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-900 dark:text-slate-100"/>
+            <input type="text" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} className="w-full p-2.5 text-xs bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-stone-900 dark:text-stone-100"/>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Bank Account Number</label>
@@ -291,3 +291,4 @@ export const SuretiesPage = () => {
         }}/>
     </div>);
 };
+

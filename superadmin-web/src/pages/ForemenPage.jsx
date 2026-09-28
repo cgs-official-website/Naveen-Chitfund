@@ -118,19 +118,19 @@ export const ForemenPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Foremen Management</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Foremen Management</h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Authorize and govern regional chit fund managers and statutory license holders.
           </p>
         </div>
-        <button onClick={() => setIsAddOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-input bg-gold-500 hover:bg-gold-400 text-navy-950 font-bold text-xs uppercase tracking-wide shadow-sm transition">
+        <button onClick={() => setIsAddOpen(true)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-maroon-950 font-bold text-xs uppercase tracking-wider shadow-md shadow-gold-500/20 transition-all hover:scale-105 active:scale-95">
           <UserPlus className="w-4 h-4"/>
           Add Authorized Foreman
         </button>
       </div>
 
       {/* Filter and Table */}
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);

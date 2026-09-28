@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layers, Eye, Users, Gavel, BookOpen } from 'lucide-react';
 import { api } from '../api/client';
@@ -81,13 +81,13 @@ export const ChitGroupsPage = () => {
     const group = detailData?.group;
     return (<div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Chit Groups Portfolio</h1>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Chit Groups Portfolio</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Review state-sanctioned ROSCA pools, member allocations, and auction schedules.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card shadow-sm p-4">
+      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -135,7 +135,7 @@ export const ChitGroupsPage = () => {
 
             {/* Tab 1: Overview */}
             {activeTab === 'overview' && (<div className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-card bg-slate-50 dark:bg-navy-950/60 border border-slate-100 dark:border-navy-800 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-navy-950/60 border border-slate-100 dark:border-navy-800 text-xs">
                   <div>
                     <span className="text-slate-400 block">Total Chit Value</span>
                     <span className="text-base font-bold text-gold-500">
@@ -162,7 +162,7 @@ export const ChitGroupsPage = () => {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-card border border-slate-200 dark:border-navy-800 bg-white dark:bg-navy-900 text-xs space-y-2">
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-navy-800 bg-white dark:bg-navy-900 text-xs space-y-2">
                   <span className="font-bold text-slate-900 dark:text-slate-100 block">
                     Statutory Certifications & Guarantees
                   </span>
@@ -180,7 +180,7 @@ export const ChitGroupsPage = () => {
 
             {/* Tab 2: Members */}
             {activeTab === 'members' && (<div className="space-y-2 max-h-96 overflow-y-auto">
-                {(detailData?.members || []).map((m) => (<div key={m.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                {(detailData?.members || []).map((m) => (<div key={m.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                     <div className="flex items-center gap-3">
                       <span className="w-7 h-7 rounded-full bg-gold-500/20 text-gold-500 flex items-center justify-center font-bold text-xs">
                         #{m.ticket_number}
@@ -198,7 +198,7 @@ export const ChitGroupsPage = () => {
 
             {/* Tab 3: Auctions */}
             {activeTab === 'auctions' && (<div className="space-y-2 max-h-96 overflow-y-auto">
-                {(detailData?.auctions || []).map((a) => (<div key={a.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                {(detailData?.auctions || []).map((a) => (<div key={a.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-slate-100 block">
                         Month #{a.month_number} Auction
@@ -216,7 +216,7 @@ export const ChitGroupsPage = () => {
 
             {/* Tab 4: Ledger */}
             {activeTab === 'ledger' && (<div className="space-y-2 max-h-96 overflow-y-auto">
-                {(detailData?.ledger || []).map((l) => (<div key={l.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                {(detailData?.ledger || []).map((l) => (<div key={l.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-100 dark:border-navy-800 rounded-2xl flex items-center justify-between text-xs">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-slate-100 block">
                         {l.entry_type}
@@ -225,7 +225,7 @@ export const ChitGroupsPage = () => {
                         {l.subscriber_name ? `${l.subscriber_name} (Ticket #${l.ticket_number})` : 'Chit Group Pool'}
                       </span>
                     </div>
-                    <div className="text-right font-bold text-slate-900 dark:text-slate-100">
+                    <div className="text-right font-bold text-stone-900 dark:text-stone-100">
                       <CurrencyText amount={l.amount}/>
                     </div>
                   </div>))}
@@ -234,3 +234,4 @@ export const ChitGroupsPage = () => {
       </Modal>
     </div>);
 };
+

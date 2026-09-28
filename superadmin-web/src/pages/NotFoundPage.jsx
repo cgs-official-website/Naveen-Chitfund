@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, Home } from 'lucide-react';
 export const NotFoundPage = () => {
@@ -20,3 +20,4 @@ export const NotFoundPage = () => {
       </div>
     </div>);
 };
+
