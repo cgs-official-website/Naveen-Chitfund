@@ -36,10 +36,14 @@ scratch/
 tmp/
 graphify-out/
 
+# Build artifacts & temp
+dist/
+test-results/
+playwright-report/
+*.apk
+
 # Root local reports & scripts
 PROJECT_*.md
 WORKFLOW.md
-docker-compose.yml
-logo.jpeg
 /package.json
 /run-dev.js

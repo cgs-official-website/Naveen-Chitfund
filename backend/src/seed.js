@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import bcrypt from 'bcryptjs';
 import { pool, query, withTransaction } from './db.js';
 
 async function seed() {
@@ -112,8 +113,23 @@ async function seed() {
   console.log('\nSeed complete. Test accounts (phone -> role):');
   console.log(`  ${adminPhone} -> admin`);
   subscriberSeeds.forEach((s) => console.log(`  ${s.phone} -> user (${s.name})`));
+  // --- Super Admin Seed ---
+  const saEmail = (process.env.SUPERADMIN_EMAIL || 'admin@naveenchit.com').trim().toLowerCase();
+  const saPassword = process.env.SUPERADMIN_PASSWORD || '12345678';
+  const saFullName = 'Naveen Chit Super Admin';
+  const saPasswordHash = await bcrypt.hash(saPassword, 12);
+
+  await query(
+    `INSERT INTO super_admins (email, password_hash, full_name, role, is_active, must_change_password)
+     VALUES ($1, $2, $3, 'SUPERADMIN', true, true)
+     ON CONFLICT (email) DO NOTHING`,
+    [saEmail, saPasswordHash, saFullName]
+  );
+  console.log(`  ${saEmail} -> superadmin (password: ${saPassword})`);
+
   console.log('\nLogin flow: POST /api/v1/auth/otp/request { phone }, then check server console for the OTP,');
   console.log('then POST /api/v1/auth/otp/verify { phone, code } to get a JWT.');
+  console.log('Superadmin Login: POST /api/v1/superadmin/auth/login { email, password }');
 
   await pool.end();
 }

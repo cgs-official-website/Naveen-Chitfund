@@ -1,8 +1,14 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 
-// With 'adb reverse tcp:4000 tcp:4000', localhost:4000 routes over USB directly to computer
-const SOCKET_URL = 'http://localhost:4000';
+import { resolveHost, PRODUCTION_BACKEND_URL } from './apiClient';
+
+export const getSocketUrl = (): string => {
+  if (!__DEV__) {
+    return PRODUCTION_BACKEND_URL;
+  }
+  return `http://${resolveHost()}:4000`;
+};
 
 export type SocketStatus = 'connected' | 'reconnecting' | 'disconnected';
 
@@ -11,7 +17,7 @@ const listeners: ((status: SocketStatus) => void)[] = [];
 
 export const getAuctionSocket = (): Socket => {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    socket = io(getSocketUrl(), {
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 10,

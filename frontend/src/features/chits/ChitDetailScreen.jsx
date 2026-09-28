@@ -10,6 +10,7 @@ import {
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { TransparencyBadge } from '../../core/components/TransparencyBadge';
 import { useAppStore } from '../../store/useAppStore';
 import {
@@ -26,10 +27,18 @@ export const ChitDetailScreen = ({
   onNavigateToAuction,
 }) => {
   const { theme, typography } = useTheme();
-  const { availableGroups, selectedGroupDetails, fetchChitGroupDetails } = useAppStore();
+  const {
+    availableGroups,
+    selectedGroupDetails,
+    fetchChitGroupDetails,
+    activeChits,
+    joinChitGroup,
+    user,
+  } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('schedule');
   const [selectedDocPreview, setSelectedDocPreview] = useState(null);
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     if (groupId) {
@@ -54,6 +63,19 @@ export const ChitDetailScreen = ({
     );
   }
 
+  const mySub = (activeChits || []).find((c) => c.chit_group_id === group.id);
+
+  const handleJoin = async () => {
+    setJoining(true);
+    const res = await joinChitGroup(group);
+    setJoining(false);
+    if (res.success) {
+      Alert.alert('Enrolled Successfully', `You have been enrolled in ${group.name}.`);
+    } else {
+      Alert.alert('Unable to Join', res.error || 'Failed to enroll in this group.');
+    }
+  };
+
   const liveSubs = group.subscriptions;
   const subscribersList =
     liveSubs && liveSubs.length > 0
@@ -61,10 +83,18 @@ export const ChitDetailScreen = ({
           const ticket = i + 1;
           const enrolled = liveSubs.find((s) => s.ticket_number === ticket);
           if (enrolled) {
+            const isMe = user?.id && enrolled.user_id === user.id;
             return {
               ticket,
-              name: enrolled.subscriber_name || `Subscriber #${ticket}`,
+              name: isMe ? `${user?.full_name || 'You'} (Your Ticket)` : (enrolled.subscriber_name || `Subscriber #${ticket}`),
               status: enrolled.subscriber_status || 'NPS',
+            };
+          }
+          if (mySub && mySub.ticket_number === ticket) {
+            return {
+              ticket,
+              name: `${user?.full_name || 'You'} (Your Ticket)`,
+              status: mySub.subscriber_status || 'NPS',
             };
           }
           return {
@@ -75,29 +105,32 @@ export const ChitDetailScreen = ({
         })
       : Array.from({ length: group.duration_months }, (_, i) => {
           const ticket = i + 1;
-          let status = 'NPS';
-          if (ticket === 1) status = 'PS';
-          else if (ticket === 2) status = 'PS';
-          else if (ticket === 3) status = 'PS';
-          else if (ticket === 7) status = 'NPS';
-          else if (ticket === 14) status = 'SB';
+          if (mySub && mySub.ticket_number === ticket) {
+            return {
+              ticket,
+              name: `${user?.full_name || 'You'} (Your Ticket)`,
+              status: mySub.subscriber_status || 'NPS',
+            };
+          }
           return {
             ticket,
-            name: ticket === 7 ? 'You (Subscriber)' : `Subscriber #${ticket}`,
-            status,
+            name: `Slot #${ticket} (Available)`,
+            status: 'NPS',
           };
         });
 
+  const baseInstallment = group.installment_amount || Math.round(Number(group.chit_amount) / Number(group.duration_months));
+  const currentMonth = group.current_month || (mySub ? mySub.installments_paid + 1 : 1);
   const installments = Array.from({ length: group.duration_months }, (_, i) => {
     const month = i + 1;
-    const isPaid = month < group.current_month;
-    const isCurrent = month === group.current_month;
-    const dividend = isPaid ? (group.past_dividends[month - 1] || 3200) : 0;
-    const amountDue = group.installment_amount - dividend;
+    const isPaid = mySub ? month <= mySub.installments_paid : month < currentMonth;
+    const isCurrent = mySub ? month === mySub.installments_paid + 1 : month === currentMonth;
+    const dividend = isPaid ? (group.past_dividends?.[month - 1] || 0) : 0;
+    const amountDue = Math.max(0, baseInstallment - dividend);
 
     return {
       month,
-      dueDate: `2026-${String((month % 12) + 1).padStart(2, '0')}-15`,
+      dueDate: `2026-${String(((month - 1) % 12) + 1).padStart(2, '0')}-15`,
       amountDue,
       dividend,
       status: isPaid ? 'PAID' : isCurrent ? 'PENDING' : 'UPCOMING',
@@ -136,7 +169,7 @@ export const ChitDetailScreen = ({
           <View style={styles.metricItem}>
             <Text style={[typography.caption, { color: theme.text.secondary }]}>Monthly Base</Text>
             <Text style={[typography.numericMedium, { color: theme.text.primary, fontWeight: '700' }]}>
-              ₹{group.installment_amount.toLocaleString('en-IN')}
+              ₹{(group.installment_amount || baseInstallment).toLocaleString('en-IN')}
             </Text>
           </View>
           <View style={styles.divider} />
@@ -161,6 +194,37 @@ export const ChitDetailScreen = ({
             </Text>
           </View>
         </View>
+
+        {mySub ? (
+          <View style={[styles.enrolledBox, { backgroundColor: 'rgba(74, 222, 128, 0.1)', borderColor: 'rgba(74, 222, 128, 0.4)' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ShieldCheck size={16} color="#4ADE80" />
+                <Text style={{ color: '#4ADE80', fontWeight: '700', marginLeft: 6, fontSize: 13 }}>
+                  Enrolled · Ticket #{mySub.ticket_number}
+                </Text>
+              </View>
+              <Text style={{ color: theme.text.secondary, fontSize: 11, fontWeight: '600' }}>
+                {mySub.installments_paid} / {mySub.total_installments} Paid
+              </Text>
+            </View>
+            <Button
+              title="Enter Live Auction Room"
+              size="sm"
+              variant="gold"
+              onPress={onNavigateToAuction}
+              style={{ marginTop: 10 }}
+            />
+          </View>
+        ) : (
+          <Button
+            title={joining ? 'Enrolling...' : `Join Scheme · ₹${baseInstallment.toLocaleString('en-IN')}/mo`}
+            variant="primary"
+            loading={joining}
+            onPress={handleJoin}
+            style={{ marginTop: 12 }}
+          />
+        )}
       </Card>
 
       <View style={[styles.tabsRow, { borderBottomColor: theme.surface.border }]}>
@@ -598,6 +662,12 @@ const styles = StyleSheet.create({
   hashBox: {
     padding: 6,
     borderRadius: 4,
+    marginTop: 12,
+  },
+  enrolledBox: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
     marginTop: 12,
   },
 });

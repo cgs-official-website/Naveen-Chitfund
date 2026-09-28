@@ -55,6 +55,7 @@ async function withTransaction(fn) {
 async function logAuditEvent(runner, {
   eventType,
   actorId = null,
+  actorType = 'USER',
   entityType,
   entityId = null,
   beforeState = null,
@@ -65,12 +66,13 @@ async function logAuditEvent(runner, {
   const q = runner || pool;
   return q.query(
     `INSERT INTO audit_events
-       (event_type, actor_id, entity_type, entity_id, before_state, after_state, metadata, ip_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (event_type, actor_id, actor_type, entity_type, entity_id, before_state, after_state, metadata, ip_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       eventType,
       actorId,
+      actorType,
       entityType,
       entityId ? String(entityId) : null,
       beforeState ? JSON.stringify(beforeState) : null,

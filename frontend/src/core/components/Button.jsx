@@ -99,6 +99,8 @@ export const Button = ({
                 color: getTextColor(),
                 fontWeight: '600',
                 marginLeft: icon ? 8 : 0,
+                flexShrink: 1,
+                textAlign: 'center',
               },
               textStyle,
             ]}

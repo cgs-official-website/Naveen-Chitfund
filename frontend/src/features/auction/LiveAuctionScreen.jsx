@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
@@ -12,6 +11,7 @@ import { useTheme } from '../../core/theme/ThemeProvider';
 import { useBreakpoint } from '../../core/responsive/useBreakpoint';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { BidDial } from '../../core/components/BidDial';
 import { ReverseBidSlider } from '../../core/components/ReverseBidSlider';
 import { useAppStore } from '../../store/useAppStore';
@@ -47,6 +47,7 @@ export const LiveAuctionScreen = () => {
     applyIncomingBid,
     closeCurrentAuction,
     fetchAuctionState,
+    fetchCurrentAuction,
   } = useAppStore();
 
   const [socketStatus, setSocketStatus] = useState('connected');
@@ -58,6 +59,23 @@ export const LiveAuctionScreen = () => {
   );
   const [bidSuccessMessage, setBidSuccessMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchCurrentAuction();
+  }, [fetchCurrentAuction]);
+
+  useEffect(() => {
+    if (currentAuction) {
+      if (currentAuction.remaining_seconds !== undefined) {
+        setRemainingSeconds(currentAuction.remaining_seconds);
+      }
+      if (currentAuction.current_lowest_bid_pct !== undefined) {
+        setSelectedBidPct(
+          Math.min(40, Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1)))
+        );
+      }
+    }
+  }, [currentAuction?.id]);
 
   useEffect(() => {
     const unsubscribe = subscribeSocketStatus((status) => {

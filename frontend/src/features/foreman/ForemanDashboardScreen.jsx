@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
   Modal,
   TextInput,
@@ -15,6 +14,7 @@ import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
 import { Input } from '../../core/components/Input';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { useAppStore } from '../../store/useAppStore';
 import {
   ShieldAlert,

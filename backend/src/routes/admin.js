@@ -74,7 +74,11 @@ router.get(
 
     res.json({
       success: true,
-      data: paginatedResponse(rowsRes.rows, parseInt(countRes.rows[0].count, 10), page, limit),
+      data: {
+        ...paginatedResponse(rowsRes.rows, parseInt(countRes.rows[0].count, 10), page, limit),
+        total: parseInt(countRes.rows[0].count, 10),
+        totalPaise: rowsRes.rows.reduce((sum, r) => sum + Number(r.amount_paise || Math.round(r.amount * 100)), 0),
+      },
     });
   })
 );

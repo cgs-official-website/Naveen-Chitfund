@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 process.env.NODE_ENV = 'test';
 process.env.REDIS_URL = '';
@@ -8,6 +9,7 @@ process.env.REDIS_URL = '';
 const testAuctionId = 'auction-stress-111';
 let mockSubscribersCount = 18;
 const maxSlots = 20;
+let mockWebhookPayments = [];
 
 jest.unstable_mockModule('../src/db.js', () => ({
   query: jest.fn(async (text, params) => {
@@ -54,6 +56,9 @@ jest.unstable_mockModule('../src/db.js', () => ({
         ],
       };
     }
+    if (text.includes('FROM payments WHERE razorpay_order_id')) {
+      return { rows: mockWebhookPayments };
+    }
     return { rows: [] };
   }),
   withTransaction: jest.fn(async (cb) => {
@@ -98,7 +103,21 @@ jest.unstable_mockModule('../src/db.js', () => ({
             ],
           };
         }
-        if (text.includes('INSERT INTO installments') || text.includes('UPDATE chit_groups')) {
+        if (text.includes('UPDATE payments SET status = \'SUCCESS\'')) {
+          mockWebhookPayments = [
+            {
+              id: 'pay-webhook-1',
+              razorpay_order_id: params[1],
+              razorpay_payment_id: params[0],
+              status: 'SUCCESS',
+              amount: 10000,
+              installment_id: 'inst-1',
+              subscription_id: 'sub-bidder-1',
+            },
+          ];
+          return { rows: mockWebhookPayments };
+        }
+        if (text.includes('INSERT INTO installments') || text.includes('UPDATE chit_groups') || text.includes('UPDATE installments') || text.includes('INSERT INTO ledger_entries')) {
           return { rows: [] };
         }
         return { rows: [] };
@@ -230,4 +249,84 @@ describe('Phase 9: High-Concurrency, Double-Spend & Production Hardening Suite',
       expect(res2.body.error).toMatch(/capacity/i);
     });
   });
+
+  describe('4. Razorpay Webhook Idempotency & Duplicate Delivery Safety', () => {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || 'test_webhook_secret_key_2026';
+    process.env.RAZORPAY_WEBHOOK_SECRET = webhookSecret;
+
+    const createSignedWebhook = (payload) => {
+      const body = JSON.stringify(payload);
+      const signature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(Buffer.from(body, 'utf8'))
+        .digest('hex');
+      return { body, signature };
+    };
+
+    test('Webhook with invalid HMAC signature is strictly rejected (400)', async () => {
+      const payload = { event: 'payment.captured', payload: { payment: { entity: { id: 'pay_123', order_id: 'order_123' } } } };
+      const res = await request(app)
+        .post('/api/v1/payments/webhook')
+        .set('Content-Type', 'application/json')
+        .set('x-razorpay-signature', 'invalid_tampered_signature_hex')
+        .send(JSON.stringify(payload));
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toMatch(/signature/i);
+    });
+
+    test('Initial valid webhook delivery captures payment and updates ledger', async () => {
+      mockWebhookPayments = []; // Empty before capture
+      const payload = {
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_rzp_99999',
+              order_id: 'order_rzp_99999',
+            },
+          },
+        },
+      };
+      const { body, signature } = createSignedWebhook(payload);
+
+      const res = await request(app)
+        .post('/api/v1/payments/webhook')
+        .set('Content-Type', 'application/json')
+        .set('x-razorpay-signature', signature)
+        .send(body);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockWebhookPayments.length).toBe(1);
+      expect(mockWebhookPayments[0].status).toBe('SUCCESS');
+    });
+
+    test('Duplicate webhook delivery for already-captured order is idempotent and skips re-processing', async () => {
+      // mockWebhookPayments is already populated with status 'SUCCESS'
+      const payload = {
+        event: 'payment.captured',
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_rzp_99999',
+              order_id: 'order_rzp_99999',
+            },
+          },
+        },
+      };
+      const { body, signature } = createSignedWebhook(payload);
+
+      const res = await request(app)
+        .post('/api/v1/payments/webhook')
+        .set('Content-Type', 'application/json')
+        .set('x-razorpay-signature', signature)
+        .send(body);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toMatch(/already processed/i);
+    });
+  });
 });
+

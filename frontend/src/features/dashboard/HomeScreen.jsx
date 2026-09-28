@@ -45,6 +45,7 @@ export const HomeScreen = ({
     activeChitsLoading,
     fetchActiveChits,
     currentAuction,
+    fetchCurrentAuction,
     isOffline,
     lastSynced,
     setOffline,
@@ -53,6 +54,7 @@ export const HomeScreen = ({
 
   useEffect(() => {
     fetchActiveChits();
+    fetchCurrentAuction();
   }, [user?.id]);
 
   const totalPortfolioValue = activeChits.reduce((acc, c) => acc + (c.chit_amount || 0), 0);
@@ -67,7 +69,7 @@ export const HomeScreen = ({
       refreshControl={
         <RefreshControl
           refreshing={activeChitsLoading}
-          onRefresh={fetchActiveChits}
+          onRefresh={() => { fetchActiveChits(); fetchCurrentAuction(); }}
           colors={[theme.maroon.primary]}
           tintColor={theme.maroon.primary}
         />

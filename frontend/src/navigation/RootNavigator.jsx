@@ -14,6 +14,7 @@ import { useTheme } from '../core/theme/ThemeProvider';
 import { useBreakpoint } from '../core/responsive/useBreakpoint';
 import { useAppStore } from '../store/useAppStore';
 import { apiClient, getStoredToken, setAuthToken } from '../core/networking/apiClient';
+import { Alert } from '../core/components/CustomAlertModal';
 
 // Screens
 import { SplashScreen } from '../features/splash/SplashScreen';
@@ -28,7 +29,7 @@ import { NotificationsScreen } from '../features/notifications/NotificationsScre
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { ForemanDashboardScreen } from '../features/foreman/ForemanDashboardScreen';
 import { AuthScreen } from '../features/auth/AuthScreen';
-import { ComponentPlayground } from '../core/components/Playground';
+import { OfflineBanner } from '../core/components/OfflineBanner';
 
 // Icons
 import {
@@ -40,18 +41,18 @@ import {
   Bell,
   User,
   Building,
-  Layers,
   ShieldCheck,
   Coins,
   Moon,
   Sun,
+  LogOut,
 } from 'lucide-react-native';
 
 export const RootNavigator = () => {
   const insets = useSafeAreaInsets();
   const { theme, typography, isDark, toggleTheme } = useTheme();
   const { isTablet, isTabletLandscape } = useBreakpoint();
-  const { user, login } = useAppStore();
+  const { user, login, logout, isOffline, lastSynced, setOffline } = useAppStore();
 
   const [appStage, setAppStage] = useState('splash'); // 'splash' | 'onboarding' | 'auth' | 'app'
   const [currentTab, setCurrentTab] = useState('home');
@@ -132,7 +133,6 @@ export const RootNavigator = () => {
     { key: 'surety', label: 'Surety', icon: Award },
     { key: 'notifications', label: 'Alerts', icon: Bell },
     ...(isForeman ? [{ key: 'foreman', label: 'Foreman', icon: Building }] : []),
-    { key: 'playground', label: 'Playground', icon: Layers },
     { key: 'profile', label: 'Profile', icon: User },
   ];
 
@@ -215,8 +215,6 @@ export const RootNavigator = () => {
         );
       case 'foreman':
         return <ForemanDashboardScreen />;
-      case 'playground':
-        return <ComponentPlayground />;
       case 'auth':
         return (
           <AuthScreen
@@ -311,8 +309,42 @@ export const RootNavigator = () => {
           >
             <User size={16} color="#D4AF37" />
           </TouchableOpacity>
+
+          {/* Quick Sign Out Button */}
+          {user?.id ? (
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  'Sign Out',
+                  'Are you sure you want to sign out?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Sign Out',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await setAuthToken(null);
+                        logout();
+                        setAppStage('auth');
+                      },
+                    },
+                  ]
+                );
+              }}
+              activeOpacity={0.7}
+              style={[styles.headerIconBtn, { backgroundColor: 'rgba(239, 68, 68, 0.18)', borderColor: 'rgba(239, 68, 68, 0.45)' }]}
+            >
+              <LogOut size={15} color="#EF4444" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
+
+      <OfflineBanner
+        isOffline={isOffline}
+        lastUpdated={lastSynced}
+        onRetry={() => setOffline(false)}
+      />
 
       <View style={styles.mainLayout}>
         {isTablet && (

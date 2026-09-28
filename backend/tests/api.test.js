@@ -21,6 +21,19 @@ jest.unstable_mockModule('../src/db.js', () => ({
         ],
       };
     }
+    if (text.includes('UPDATE users SET full_name')) {
+      return {
+        rows: [
+          {
+            id: '00000000-0000-0000-0000-000000000001',
+            full_name: params ? params[0] : 'Test User',
+            phone: '+919876543210',
+            role: 'user',
+            kyc_status: 'VERIFIED',
+          },
+        ],
+      };
+    }
     if (text.includes('SELECT * FROM users WHERE phone')) {
       return {
         rows: [
@@ -135,6 +148,37 @@ jest.unstable_mockModule('../src/db.js', () => ({
     if (text.includes('dpdp_consents')) {
       return { rows: [] };
     }
+    if (text.includes('FROM ledger_entries') && !text.includes('subscriptions')) {
+      if (text.includes('COUNT(*)')) {
+        return { rows: [{ count: 2 }] };
+      }
+      return {
+        rows: [
+          {
+            id: 'le-1',
+            chit_group_id: '11111111-1111-1111-1111-111111111111',
+            subscription_id: '22222222-2222-2222-2222-222222222222',
+            entry_type: 'INSTALLMENT',
+            amount: 5000,
+            amount_paise: 500000,
+            created_at: new Date().toISOString(),
+            chit_group_name: 'Gold Chit 1 Lakh',
+            ticket_number: 7,
+          },
+          {
+            id: 'le-2',
+            chit_group_id: '11111111-1111-1111-1111-111111111111',
+            subscription_id: '22222222-2222-2222-2222-222222222222',
+            entry_type: 'INSTALLMENT',
+            amount: 5000,
+            amount_paise: 500000,
+            created_at: new Date().toISOString(),
+            chit_group_name: 'Gold Chit 1 Lakh',
+            ticket_number: 7,
+          },
+        ],
+      };
+    }
     if (text.includes('SUM(chit_amount)')) {
       return {
         rows: [{ total: '500000' }],
@@ -218,48 +262,35 @@ jest.unstable_mockModule('../src/db.js', () => ({
         ],
       };
     }
-    if (text.includes('FROM sureties s JOIN subscriptions sub') || text.includes('SELECT s.*, sub.user_id')) {
+    if (
+      text.includes('FROM sureties s JOIN subscriptions sub') ||
+      text.includes('SELECT s.*, sub.user_id') ||
+      text.includes('FROM sureties WHERE id =') ||
+      text.includes('SELECT * FROM sureties WHERE id') ||
+      text.includes('FROM sureties s')
+    ) {
+      const isNps = Boolean(params && (params.includes('surety-nps-attempt') || text.includes('surety-nps-attempt')));
       return {
         rows: [
           {
-            id: '66666666-6666-6666-6666-666666666666',
+            id: isNps ? 'surety-nps-attempt' : '66666666-6666-6666-6666-666666666666',
             subscription_id: '22222222-2222-2222-2222-222222222222',
             auction_id: '55555555-5555-5555-5555-555555555555',
             act_auction_id: '55555555-5555-5555-5555-555555555555',
             sub_id: '22222222-2222-2222-2222-222222222222',
             user_id: '00000000-0000-0000-0000-000000000001',
-            subscriber_status: 'SB',
-            surety_type: 'CO_GUARANTORS',
-            status: 'SUBMITTED',
-            group_name: 'Gold Chit 1 Lakh',
-            chit_amount: 100000,
-            foreman_commission_pct: 5,
-            winning_bid_pct: 20.0,
-          },
-        ],
-      };
-    }
-    if (text.includes('FROM sureties WHERE id =') || text.includes('SELECT * FROM sureties WHERE id')) {
-      return {
-        rows: [
-          {
-            id: '66666666-6666-6666-6666-666666666666',
-            subscription_id: '22222222-2222-2222-2222-222222222222',
-            auction_id: '55555555-5555-5555-5555-555555555555',
-            act_auction_id: '55555555-5555-5555-5555-555555555555',
-            sub_id: '22222222-2222-2222-2222-222222222222',
-            user_id: '00000000-0000-0000-0000-000000000001',
-            subscriber_status: 'SB',
+            subscriber_status: isNps ? 'NPS' : 'SB',
             group_name: 'Gold Chit 1 Lakh',
             chit_amount: 100000,
             foreman_commission_pct: 5,
             winning_bid_pct: 20.0,
             surety_type: 'CO_GUARANTORS',
-            status: 'PENDING',
+            status: isNps ? 'PENDING' : 'SUBMITTED',
           },
         ],
       };
     }
+
     if (text.includes('FROM sureties WHERE subscription_id =')) {
       return {
         rows: [
@@ -335,6 +366,23 @@ jest.unstable_mockModule('../src/db.js', () => ({
             winner_ticket_number: 7,
             winner_ticket: 7,
             registrar_state_code: 'TS',
+          },
+        ],
+      };
+    }
+    if (text.includes('STATUTORY_FILING_RECORDED')) {
+      return {
+        rows: [
+          {
+            id: 'filing-evt-1',
+            actor_id: '00000000-0000-0000-0000-000000000002',
+            metadata: {
+              formType: 'FORM_XIV',
+              filingReferenceNumber: 'FXIV-TS-2026-001',
+              status: 'APPROVED',
+              registrarStateCode: 'TS',
+            },
+            created_at: new Date().toISOString(),
           },
         ],
       };
@@ -535,6 +583,28 @@ describe('Backend Comprehensive Test Suite', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.message).toBeDefined();
+    });
+
+    test('POST /api/v1/auth/register-direct registers user without OTP', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register-direct')
+        .send({ phone: '+919876543210', fullName: 'Direct Registered User', role: 'user' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.token).toBeDefined();
+      expect(res.body.data.user.phone).toBe('+919876543210');
+    });
+
+    test('POST /api/v1/auth/login-direct logs in existing user without OTP', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login-direct')
+        .send({ phone: '+919876543210' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.token).toBeDefined();
+      expect(res.body.data.user.phone).toBe('+919876543210');
     });
 
     test('Protected route /api/v1/users/me without Bearer token returns 401 Unauthorized', async () => {
@@ -868,7 +938,24 @@ describe('Backend Comprehensive Test Suite', () => {
       expect(Number(res.body.data.netPayoutAmount)).toBe(80000);
       expect(res.body.data.utrNumber).toMatch(/^UTR/);
     });
+
+    test('POST /api/v1/sureties/:id/disburse strictly enforces statutory state-machine guard (rejects non-SB subscriber)', async () => {
+      const res = await request(app)
+        .post('/api/v1/sureties/surety-nps-attempt/disburse')
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .send({
+          bankAccountNumber: '123456789012',
+          bankIfsc: 'HDFC0001234',
+          bankBeneficiaryName: 'Jane Doe',
+          paymentMode: 'RTGS',
+        });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Statutory violation|Successful Bidders/i);
+    });
   });
+
 
   describe('9. Foreman Admin Portal & Group Creation Flow (Phase 7)', () => {
     test('GET /api/v1/admin/dashboard returns operational aggregates with role guard', async () => {
@@ -1016,5 +1103,45 @@ describe('Backend Comprehensive Test Suite', () => {
       expect(res.body.data.lineItems[0].sgstRatePct).toBe(9);
       expect(res.body.data.rcmApplicable).toBe(false);
     });
+
+    test('POST /api/v1/compliance/filings records statutory filing and GET /api/v1/compliance/filings retrieves records', async () => {
+      const postRes = await request(app)
+        .post('/api/v1/compliance/filings')
+        .set('Authorization', `Bearer ${testAdminToken}`)
+        .send({
+          formType: 'FORM_XIV',
+          filingReferenceNumber: 'FXIV-TS-2026-001',
+          registrarStateCode: 'TS',
+          status: 'APPROVED',
+          remarks: 'Form XIV filed within 48-hour statutory window',
+        });
+
+      expect(postRes.statusCode).toBe(201);
+      expect(postRes.body.success).toBe(true);
+      expect(postRes.body.data.formType).toBe('FORM_XIV');
+      expect(postRes.body.data.filingReferenceNumber).toBe('FXIV-TS-2026-001');
+
+      const getRes = await request(app)
+        .get('/api/v1/compliance/filings')
+        .set('Authorization', `Bearer ${testAdminToken}`);
+
+      expect(getRes.statusCode).toBe(200);
+      expect(getRes.body.success).toBe(true);
+      expect(Array.isArray(getRes.body.data)).toBe(true);
+      expect(getRes.body.data.length).toBeGreaterThan(0);
+    });
+
+    test('GET /api/v1/admin/ledger returns double-entry ledger audit records and balances', async () => {
+      const res = await request(app)
+        .get('/api/v1/admin/ledger')
+        .set('Authorization', `Bearer ${testAdminToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.items)).toBe(true);
+      expect(res.body.data.total).toBe(2);
+      expect(Number(res.body.data.totalPaise)).toBe(1000000);
+    });
   });
 });
+

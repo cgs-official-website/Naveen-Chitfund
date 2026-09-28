@@ -91,7 +91,7 @@ router.post(
     const userId = req.user.userId;
     const { purpose, consented } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-    const userAgent = req.headers['user-agent'] || 'ChitTech App';
+    const userAgent = req.headers['user-agent'] || 'Naveen Chit Fund App';
 
     const { rows } = await query(
       `INSERT INTO dpdp_consents (user_id, purpose, consented, consent_timestamp, ip_address, user_agent)
@@ -225,7 +225,7 @@ router.get(
         'True copies of the bid entries and minutes are lodged with the Registrar of Chits within the prescribed 48-hour statutory window.',
       ],
       dscStatus: 'DIGITALLY_SIGNED_SHA256_RSA',
-      foremanSignatureVerification: 'CHITTECH FOREMAN ESCROW PVT LTD (DIRECTOR DSC VERIFIED)',
+      foremanSignatureVerification: 'NAVEEN CHIT FUND FOREMAN ESCROW PVT LTD (DIRECTOR DSC VERIFIED)',
     };
 
     res.json({
@@ -272,8 +272,8 @@ router.get(
       sacDescription: 'Financial intermediation services (Chit Fund Foreman Management Commission)',
       gstNotification: 'Notification No. 11/2017 - Central Tax (Rate)',
       foremanEntity: {
-        legalName: 'ChitTech Digital Chit Funds Private Limited',
-        tradeName: 'ChitTech Fintech',
+        legalName: 'Naveen Chit Fund Private Limited',
+        tradeName: 'Naveen Chit Fund',
         gstin: '36AAACC1206K1ZF',
         pan: 'AAACC1206K',
         state: 'Telangana',
@@ -309,6 +309,90 @@ router.get(
     res.json({
       success: true,
       data: invoice,
+    });
+  })
+);
+
+// POST /api/v1/compliance/filings — record a statutory filing (Form I / Form II / Form XIV)
+const recordFilingSchema = z.object({
+  chitGroupId: z.string().uuid().optional(),
+  auctionId: z.string().uuid().optional(),
+  formType: z.enum(['FORM_I', 'FORM_II', 'FORM_XIV', 'PMLA_STR', 'GST_GSTR1']),
+  filingReferenceNumber: z.string().min(3),
+  filingDate: z.string().optional(),
+  registrarStateCode: z.string().default('TS'),
+  status: z.enum(['PENDING', 'SUBMITTED', 'ACKNOWLEDGED', 'APPROVED']).default('SUBMITTED'),
+  remarks: z.string().optional(),
+});
+
+router.post(
+  '/filings',
+  requireAuth,
+  requireRole('admin'),
+  validateBody(recordFilingSchema),
+  asyncHandler(async (req, res) => {
+    const { chitGroupId, auctionId, formType, filingReferenceNumber, filingDate, registrarStateCode, status, remarks } = req.body;
+
+    const auditRecord = await logAuditEvent(null, {
+      eventType: 'STATUTORY_FILING_RECORDED',
+      actorId: req.user.userId,
+      entityType: 'compliance_filings',
+      entityId: filingReferenceNumber,
+      metadata: {
+        chitGroupId,
+        auctionId,
+        formType,
+        filingReferenceNumber,
+        filingDate: filingDate || new Date().toISOString(),
+        registrarStateCode,
+        status,
+        remarks,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: auditRecord?.rows?.[0]?.id || `filing-${Date.now()}`,
+        formType,
+        filingReferenceNumber,
+        status,
+        filingDate: filingDate || new Date().toISOString(),
+        recordedAt: new Date().toISOString(),
+      },
+    });
+  })
+);
+
+// GET /api/v1/compliance/filings — list recorded statutory filings
+router.get(
+  '/filings',
+  requireAuth,
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const { formType, status } = req.query;
+
+    const resEvents = await query(
+      `SELECT id, actor_id, metadata, created_at
+       FROM audit_events
+       WHERE event_type = 'STATUTORY_FILING_RECORDED'
+       ORDER BY created_at DESC
+       LIMIT 100`
+    );
+
+    let filings = resEvents.rows.map((r) => ({
+      id: r.id,
+      actorId: r.actor_id,
+      recordedAt: r.created_at,
+      ...(r.metadata || {}),
+    }));
+
+    if (formType) filings = filings.filter((f) => f.formType === formType);
+    if (status) filings = filings.filter((f) => f.status === status);
+
+    res.json({
+      success: true,
+      data: filings,
     });
   })
 );

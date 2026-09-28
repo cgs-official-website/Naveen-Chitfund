@@ -12,11 +12,94 @@ import {
 
 export const NotificationsScreen = () => {
   const { theme, typography } = useTheme();
-  const { user } = useAppStore();
+  const { user, activeChits, currentAuction, activePrizeClaim } = useAppStore();
 
   const isForeman = user?.role === 'admin';
 
+  // Dynamically derive notifications from real system and subscriber state
   const notifications = [];
+
+  // 1. Live/Scheduled Auction Alert
+  if (currentAuction) {
+    notifications.push({
+      id: `notif-auc-${currentAuction.id}`,
+      type: 'AUCTION',
+      title: currentAuction.status === 'IN_PROGRESS' ? 'Live Reverse Auction in Progress' : 'Monthly Auction Scheduled',
+      body: `Reverse auction for ${currentAuction.chit_group_name} (Month #${currentAuction.month_number}) is ${currentAuction.status === 'IN_PROGRESS' ? 'now live! Submit your bids via WebSocket.' : 'scheduled soon.'}`,
+      time: 'Just now',
+      isUnread: currentAuction.status === 'IN_PROGRESS',
+      foremanOnly: false,
+    });
+  }
+
+  // 2. Due Installment Nudge
+  if (activeChits && activeChits.length > 0) {
+    const dueChit = activeChits.find((c) => c.installments_paid < c.total_installments);
+    if (dueChit) {
+      notifications.push({
+        id: `notif-inst-${dueChit.id}`,
+        type: 'PAYMENT',
+        title: 'Monthly Installment Due',
+        body: `Installment #${dueChit.installments_paid + 1} of ₹${dueChit.installment_amount.toLocaleString('en-IN')} for ${dueChit.chit_group_name} is due by the 15th.`,
+        time: 'Today',
+        isUnread: true,
+        foremanOnly: false,
+      });
+    }
+
+    // 3. Dividend notification
+    const totalDiv = activeChits.reduce((acc, c) => acc + (c.total_dividend_earned || 0), 0);
+    if (totalDiv > 0) {
+      notifications.push({
+        id: 'notif-div-earned',
+        type: 'DIVIDEND',
+        title: 'Statutory Dividend Credited',
+        body: `You have accrued ₹${totalDiv.toLocaleString('en-IN')} in total dividend deductions across your active chit groups.`,
+        time: 'Active cycle',
+        isUnread: false,
+        foremanOnly: false,
+      });
+    }
+  }
+
+  // 4. Prize Claim / Surety Alert
+  if (activePrizeClaim) {
+    notifications.push({
+      id: 'notif-surety-claim',
+      type: 'REGISTRAR',
+      title: 'Prize Disbursal & Surety Review',
+      body: `Status: ${activePrizeClaim.surety?.status || 'PENDING'}. Please ensure co-guarantor salary slips and identity proofs are verified.`,
+      time: 'Recent',
+      isUnread: activePrizeClaim.surety?.status === 'PENDING',
+      foremanOnly: false,
+    });
+  }
+
+  // 5. KYC Status Nudge
+  if (user && user.kyc_status !== 'VERIFIED') {
+    notifications.push({
+      id: 'notif-kyc-nudge',
+      type: 'REGISTRAR',
+      title: 'Complete Your DPDP & PMLA KYC',
+      body: 'Upload your PAN card and complete identity verification to qualify for reverse auction bidding and prize disbursals.',
+      time: 'Account Notice',
+      isUnread: true,
+      foremanOnly: false,
+    });
+  }
+
+  // 6. Foreman specific statutory reminders
+  if (isForeman) {
+    notifications.push({
+      id: 'notif-foreman-formxiv',
+      type: 'REGISTRAR',
+      title: 'Section 18 / Form XIV Regulatory Filing',
+      body: 'Ensure Form XIV auction minutes and GST tax invoices are filed with the State Registrar within 48 hours of auction completion.',
+      time: 'Statutory Requirement',
+      isUnread: false,
+      foremanOnly: true,
+    });
+  }
 
   const filteredNotifications = notifications.filter(
     (n) => !n.foremanOnly || isForeman

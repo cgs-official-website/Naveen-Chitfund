@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Switch,
-  Alert,
   TouchableOpacity,
   TextInput,
   Modal,
@@ -15,6 +14,7 @@ import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
 import { Input } from '../../core/components/Input';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { useAppStore } from '../../store/useAppStore';
 import { setAuthToken } from '../../core/networking/apiClient';
 import {
@@ -117,18 +117,53 @@ export const ProfileScreen = ({ onLogout, onReplaySplash, onReplayOnboarding }) 
     }
   };
 
+  const handleSignOutConfirm = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of Naveen Chit Fund?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await setAuthToken(null);
+            logout();
+            if (onLogout) onLogout();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.surface.base }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { flexGrow: 1, paddingBottom: 130 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       <View style={styles.header}>
-        <Text style={[typography.h1, { color: theme.text.primary }]}>
-          Profile & Privacy Center
-        </Text>
-        <Text style={[typography.bodyMedium, { color: theme.text.secondary }]}>
-          DPDP 2023 Compliance, Biometric Security & Data Governance
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={[typography.h1, { color: theme.text.primary }]}>
+              Profile & Privacy Center
+            </Text>
+            <Text style={[typography.bodyMedium, { color: theme.text.secondary }]}>
+              DPDP 2023 Compliance & Security
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleSignOutConfirm}
+            style={[styles.topLogoutBtn, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+            activeOpacity={0.7}
+          >
+            <LogOut size={15} color={theme.semantic.error} />
+            <Text style={{ color: theme.semantic.error, fontWeight: '700', fontSize: 12, marginLeft: 6 }}>
+              Sign Out
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Card variant="goldAccent" style={styles.profileCard}>
@@ -344,15 +379,12 @@ export const ProfileScreen = ({ onLogout, onReplaySplash, onReplayOnboarding }) 
         )}
 
         <Button
-          title="Sign Out"
-          variant="ghost"
+          title="Sign Out of Account"
+          variant="outline"
           icon={<LogOut size={16} color={theme.semantic.error} />}
-          textStyle={{ color: theme.semantic.error }}
-          onPress={async () => {
-            await setAuthToken(null);
-            logout();
-            if (onLogout) onLogout();
-          }}
+          textStyle={{ color: theme.semantic.error, fontWeight: '700' }}
+          style={{ borderColor: theme.semantic.error, backgroundColor: 'rgba(239, 68, 68, 0.08)', marginTop: 8 }}
+          onPress={handleSignOutConfirm}
         />
       </View>
 
@@ -501,5 +533,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
+  },
+  topLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginLeft: 10,
   },
 });

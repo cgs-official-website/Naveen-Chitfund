@@ -1,7 +1,7 @@
 {
-  "name": "chittech-backend",
+  "name": "naveen-chit-fund-backend",
   "version": "1.0.0",
-  "description": "ChitTech - digital chit fund platform backend (MVP)",
+  "description": "Naveen Chit Fund - institutional digital chit fund platform backend",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

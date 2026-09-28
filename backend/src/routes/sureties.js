@@ -260,6 +260,22 @@ router.post(
     if (!suretyRes.rows.length) throw new ApiError(404, 'Surety record not found');
     const item = suretyRes.rows[0];
 
+    // Statutory Guard 1 (§ 31 Chit Funds Act): Subscriber must be a Successful Bidder (SB)
+    if (item.subscriber_status !== 'SB') {
+      throw new ApiError(
+        400,
+        `Statutory violation: Disbursal permitted only for Successful Bidders (status: 'SB'). Current subscriber status: '${item.subscriber_status}'.`
+      );
+    }
+
+    // Statutory Guard 2 (§ 31 Chit Funds Act): Surety package cannot be in REJECTED state
+    if (item.status === 'REJECTED') {
+      throw new ApiError(
+        400,
+        'Cannot disburse prize payout: Surety package has been rejected by Foreman.'
+      );
+    }
+
     const grossPaise = toPaise(Number(item.chit_amount));
     const winPct = Number(item.winning_bid_pct || 22.5);
     const discountPaise = Math.round((grossPaise * winPct) / 100);

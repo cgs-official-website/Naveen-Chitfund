@@ -6,16 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   RefreshControl,
   ActivityIndicator,
   Modal,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
 import { Input } from '../../core/components/Input';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { useAppStore } from '../../store/useAppStore';
 import {
   Award,
@@ -87,59 +89,7 @@ export const SuretyScreen = () => {
     setRefreshing(false);
   }, [fetchActivePrizeClaim, fetchActiveChits]);
 
-  // Fallback demo values if no active claim in DB
-  const sbChit = activeChits.find(
-    (c) => c.subscriber_status === 'SB' || c.subscriber_status === 'PS'
-  );
-
-  const claim = activePrizeClaim || (sbChit ? {
-    subscription: {
-      subscription_id: sbChit.id,
-      ticket_number: sbChit.ticket_number,
-      subscriber_status: sbChit.subscriber_status,
-      prized_month: 2,
-      chit_group_id: sbChit.chit_group_id,
-      chit_group_name: sbChit.chit_group_name,
-      chit_amount: sbChit.chit_amount,
-      foreman_commission_pct: 5,
-      winning_bid_pct: 22.5,
-    },
-    grossAmount: sbChit.chit_amount,
-    grossAmountPaise: sbChit.chit_amount * 100,
-    winningBidPct: 22.5,
-    discountAmount: (sbChit.chit_amount * 22.5) / 100,
-    discountAmountPaise: (sbChit.chit_amount * 22.5),
-    foremanCommissionAmount: (sbChit.chit_amount * 5) / 100,
-    netPayoutAmount: sbChit.chit_amount - (sbChit.chit_amount * 22.5) / 100,
-    netPayoutPaise: (sbChit.chit_amount - (sbChit.chit_amount * 22.5) / 100) * 100,
-    surety: {
-      id: 'surety-demo-1',
-      subscription_id: sbChit.id,
-      surety_type: 'CO_GUARANTORS',
-      status: 'PENDING',
-      guarantors: [
-        {
-          id: 'g1',
-          surety_id: 'surety-demo-1',
-          full_name: 'P. Raghavendra (Govt Employee)',
-          phone: '+91 98480 11223',
-          pan_number: 'ABCDE1234F',
-          signature_verified: true,
-          verification_status: 'VERIFIED',
-        },
-        {
-          id: 'g2',
-          surety_id: 'surety-demo-1',
-          full_name: 'M. Venkat Reddy (Self-Employed)',
-          phone: '+91 94401 23901',
-          pan_number: 'FGHIJ5678K',
-          signature_verified: false,
-          verification_status: 'PENDING',
-        },
-      ],
-    },
-    disbursal: null,
-  } : null);
+  const claim = activePrizeClaim;
 
   const handleSubmitSurety = async () => {
     if (!claim?.surety?.id) return;
@@ -276,37 +226,14 @@ export const SuretyScreen = () => {
       ? suretyDocuments
       : (claim?.surety?.documents && claim.surety.documents.length > 0)
       ? claim.surety.documents
-      : [
-          {
-            id: 'demo-doc-1',
-            surety_id: claim?.surety?.id || 'surety-demo-1',
-            document_type: 'SALARY_SLIP',
-            title: '3 Months Salary Slip (P. Raghavendra)',
-            file_url: 'https://res.cloudinary.com/chittech-cloud/image/upload/v1726480000/chittech/documents/salary_slip_demo.pdf',
-            cloudinary_public_id: 'chittech/documents/salary_slip_demo',
-            verification_status: 'VERIFIED',
-            file_size_bytes: 245000,
-            guarantor_name: 'P. Raghavendra',
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'demo-doc-2',
-            surety_id: claim?.surety?.id || 'surety-demo-1',
-            document_type: 'PAN_CARD',
-            title: 'Guarantor PAN Card Copy',
-            file_url: 'https://res.cloudinary.com/chittech-cloud/image/upload/v1726480000/chittech/documents/pan_copy_demo.pdf',
-            cloudinary_public_id: 'chittech/documents/pan_copy_demo',
-            verification_status: 'VERIFIED',
-            file_size_bytes: 120000,
-            guarantor_name: 'M. Venkat Reddy',
-            created_at: new Date().toISOString(),
-          },
-        ];
+      : [];
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.surface.base }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { flexGrow: 1, paddingBottom: 60 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -793,18 +720,20 @@ export const SuretyScreen = () => {
       ) : (
         <Card style={styles.prizeCard}>
           <View style={styles.prizeRow}>
-            <View style={[styles.awardBadge, { backgroundColor: theme.surface.cardSubtle }]}>
-              <Award size={28} color={theme.text.muted} />
+            <View style={[styles.awardBadge, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+              <Award size={28} color="#D4AF37" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[typography.caption, { color: theme.text.secondary, fontWeight: '700' }]}>
-                NO PRIZE MONEY CLAIM PENDING
+                {activeChits.length > 0 ? 'ACTIVE SUBSCRIBER STATUS (NPS)' : 'NO PRIZE MONEY CLAIM PENDING'}
               </Text>
               <Text style={[typography.displayLarge, { color: theme.text.primary, marginTop: 2 }]}>
-                ₹0
+                ₹{activeChits.length > 0 ? (activeChits[0].chit_amount * 0.95).toLocaleString('en-IN') : '0'}
               </Text>
-              <Text style={[typography.caption, { color: theme.text.secondary }]}>
-                Win a monthly live reverse auction round to initiate Section 31 statutory surety evaluation and RTGS prize payout.
+              <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 4, lineHeight: 18 }]}>
+                {activeChits.length > 0
+                  ? `Enrolled in "${activeChits[0].chit_group_name}". Win an upcoming monthly reverse auction to initiate Section 31 statutory surety evaluation and RTGS prize payout.`
+                  : 'Join a registered chit scheme and participate in monthly reverse auctions to claim prize funds.'}
               </Text>
             </View>
           </View>
@@ -814,51 +743,60 @@ export const SuretyScreen = () => {
       {/* Add Guarantor Modal */}
       {showAddGuarantorModal && (
         <Modal transparent animationType="fade" visible={true}>
-          <View style={styles.modalBackdrop}>
-            <View style={[styles.modalCard, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
-              <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 12 }]}>
-                Add Co-Guarantor
-              </Text>
-              <Input
-                label="Full Name"
-                placeholder="Guarantor legal name"
-                value={newGName}
-                onChangeText={setNewGName}
-                autoCapitalize="words"
-              />
-              <Input
-                label="Mobile Number"
-                placeholder="10-digit number"
-                value={newGPhone}
-                onChangeText={setNewGPhone}
-                prefix="+91"
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-              <Input
-                label="PAN Number (Optional)"
-                placeholder="ABCDE1234F"
-                value={newGPan}
-                onChangeText={setNewGPan}
-                autoCapitalize="characters"
-                maxLength={10}
-              />
-              <View style={{ flexDirection: 'row', marginTop: 16, width: '100%' }}>
-                <Button
-                  title="Cancel"
-                  variant="outline"
-                  onPress={() => setShowAddGuarantorModal(false)}
-                  style={{ flex: 1, marginRight: 8 }}
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.modalCard, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
+                <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 12 }]}>
+                  Add Co-Guarantor
+                </Text>
+                <Input
+                  label="Full Name"
+                  placeholder="Guarantor legal name"
+                  value={newGName}
+                  onChangeText={setNewGName}
+                  autoCapitalize="words"
                 />
-                <Button
-                  title="Save Guarantor"
-                  variant="primary"
-                  onPress={handleAddGuarantorSubmit}
-                  style={{ flex: 1, marginLeft: 8 }}
+                <Input
+                  label="Mobile Number"
+                  placeholder="10-digit number"
+                  value={newGPhone}
+                  onChangeText={setNewGPhone}
+                  prefix="+91"
+                  keyboardType="phone-pad"
+                  maxLength={10}
                 />
+                <Input
+                  label="PAN Number (Optional)"
+                  placeholder="ABCDE1234F"
+                  value={newGPan}
+                  onChangeText={setNewGPan}
+                  autoCapitalize="characters"
+                  maxLength={10}
+                />
+                <View style={{ flexDirection: 'row', marginTop: 16, width: '100%' }}>
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    onPress={() => setShowAddGuarantorModal(false)}
+                    style={{ flex: 1, marginRight: 8 }}
+                  />
+                  <Button
+                    title="Save Guarantor"
+                    variant="primary"
+                    onPress={handleAddGuarantorSubmit}
+                    style={{ flex: 1, marginLeft: 8 }}
+                  />
+                </View>
               </View>
-            </View>
-          </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Modal>
       )}
 

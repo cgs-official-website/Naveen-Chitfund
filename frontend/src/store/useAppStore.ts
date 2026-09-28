@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiClient } from '../core/networking/apiClient';
+import { apiClient, onConnectivityChange, onUnauthorized } from '../core/networking/apiClient';
 import { uploadAndRegisterDocument } from '../core/networking/cloudinaryClient';
 
 export type SubscriberStatus = 'NPS' | 'SB' | 'PS';
@@ -261,6 +261,7 @@ interface AppState {
   toggleBiometric: () => void;
   fetchAvailableGroups: () => Promise<void>;
   fetchActiveChits: () => Promise<void>;
+  fetchCurrentAuction: (passedChits?: Subscription[]) => Promise<void>;
   fetchPaymentHistory: () => Promise<void>;
   fetchActivePrizeClaim: () => Promise<void>;
   fetchSuretyDocuments: (suretyId: string) => Promise<void>;
@@ -331,62 +332,15 @@ interface AppState {
   closeAuctionAdmin: (auctionId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
   fetchAdminLedger: (filters?: { groupId?: string; subscriptionId?: string; from?: string; to?: string }) => Promise<{ success: boolean; data?: any; error?: string }>;
   setOffline: (offline: boolean) => void;
+  reSyncAll: () => Promise<void>;
 }
 
 const INITIAL_GROUPS: ChitGroup[] = [];
 
 const INITIAL_SUBSCRIPTIONS: Subscription[] = [];
 
-const INITIAL_AUCTION: Auction = {
-  id: 'a1111111-1111-1111-1111-111111111111',
-  chit_group_id: '11111111-1111-1111-1111-111111111111',
-  chit_group_name: 'Gold Chit 1 Lakh',
-  month_number: 2,
-  status: 'IN_PROGRESS',
-  scheduled_at: new Date().toISOString(),
-  current_lowest_bid_pct: 22.5,
-  chit_amount: 100000,
-  total_subscribers: 20,
-  present_subscribers: 18,
-  remaining_seconds: 120,
-  bids: [
-    {
-      id: 'b1',
-      bidder_name: 'Ticket #04 (R. Sharma)',
-      ticket_number: 4,
-      bid_pct: 22.5,
-      discount_amount: 22500,
-      timestamp: '17:31:40',
-    },
-    {
-      id: 'b2',
-      bidder_name: 'Ticket #12 (P. Kumar)',
-      ticket_number: 12,
-      bid_pct: 20.0,
-      discount_amount: 20000,
-      timestamp: '17:31:15',
-    },
-    {
-      id: 'b3',
-      bidder_name: 'Ticket #01 (Foreman Commission)',
-      ticket_number: 1,
-      bid_pct: 5.0,
-      discount_amount: 5000,
-      timestamp: '17:30:00',
-    },
-  ],
-};
-
 export const useAppStore = create<AppState>((set, get) => ({
-  user: {
-    id: '',
-    phone: '',
-    full_name: 'Subscriber',
-    role: 'user',
-    kyc_status: 'NOT_STARTED',
-    is_nri: false,
-    biometric_enabled: false,
-  },
+  user: null,
   token: null,
   isOffline: false,
   lastSynced: 'Not synced yet',
@@ -396,7 +350,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   paymentHistoryLoading: false,
   availableGroupsLoading: false,
   activeChitsLoading: false,
-  currentAuction: INITIAL_AUCTION,
+  currentAuction: null,
   activePrizeClaim: null,
   prizeClaimLoading: false,
   suretyDocuments: [],
@@ -460,27 +414,134 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const res = await apiClient.get('/subscriptions/mine');
       const subs = res.data?.data || [];
+      const mapped = subs.map((s: any) => ({
+        id: s.id,
+        chit_group_id: s.chit_group_id,
+        chit_group_name: s.chit_group_name || s.group_name,
+        ticket_number: s.ticket_number,
+        subscriber_status: s.subscriber_status,
+        chit_amount: Number(s.chit_amount),
+        installment_amount: Number(s.installment_amount),
+        next_due_date: '15th of month',
+        is_overdue: false,
+        installments_paid: Number(s.installments_paid || 0),
+        total_installments: Number(s.duration_months || 20),
+        total_dividend_earned: Number(s.total_dividend_earned || 0),
+      }));
       set({
-        activeChits: subs.map((s: any) => ({
-          id: s.id,
-          chit_group_id: s.chit_group_id,
-          chit_group_name: s.chit_group_name || s.group_name,
-          ticket_number: s.ticket_number,
-          subscriber_status: s.subscriber_status,
-          chit_amount: Number(s.chit_amount),
-          installment_amount: Number(s.installment_amount),
-          next_due_date: '15th of month',
-          is_overdue: false,
-          installments_paid: Number(s.installments_paid || 0),
-          total_installments: Number(s.duration_months || 20),
-          total_dividend_earned: Number(s.total_dividend_earned || 0),
-        })),
+        activeChits: mapped,
         activeChitsLoading: false,
         lastSynced: new Date().toLocaleTimeString('en-IN'),
       });
+      get().fetchCurrentAuction(mapped);
     } catch (err: any) {
       console.warn('Failed to fetch user subscriptions:', err.message);
       set({ activeChitsLoading: false });
+    }
+  },
+
+  fetchCurrentAuction: async (passedChits?: Subscription[]) => {
+    const state = get();
+    if (!state.user?.id) return;
+    try {
+      const chitsToInspect = passedChits && passedChits.length > 0 ? passedChits : state.activeChits;
+
+      // 1. Search auctions for user's subscribed chit groups
+      for (const sub of chitsToInspect) {
+        try {
+          const res = await apiClient.get(`/chit-groups/${sub.chit_group_id}/auctions`);
+          const auctions = res.data?.data?.items || [];
+          const liveAuction = auctions.find((a: any) => a.status === 'LIVE' || a.status === 'SCHEDULED');
+          if (liveAuction) {
+            const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
+            const detail = detailRes.data?.data;
+            if (detail) {
+              const bidsRes = detail.liveState?.bids || [];
+              set({
+                currentAuction: {
+                  id: detail.id,
+                  chit_group_id: detail.chit_group_id,
+                  chit_group_name: sub.chit_group_name || 'Chit Group',
+                  month_number: detail.month_number,
+                  status: detail.status === 'LIVE' ? 'IN_PROGRESS' : 'SCHEDULED',
+                  scheduled_at: detail.scheduled_at || new Date().toISOString(),
+                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || 0),
+                  chit_amount: Number(sub.chit_amount),
+                  total_subscribers: sub.total_installments || 20,
+                  present_subscribers: Number(detail.liveState?.presentCount || 0),
+                  remaining_seconds: Number(detail.liveState?.remainingSeconds || 0),
+                  bids: bidsRes.map((b: any) => ({
+                    id: b.id || `b-${Date.now()}`,
+                    bidder_name: b.bidder_name || `Ticket #${b.ticket_number}`,
+                    ticket_number: Number(b.ticket_number || 0),
+                    bid_pct: Number(b.bid_pct),
+                    discount_amount: (Number(sub.chit_amount) * Number(b.bid_pct)) / 100,
+                    timestamp: b.bid_at ? new Date(b.bid_at).toLocaleTimeString('en-IN', { hour12: false }) : '',
+                  })),
+                },
+              });
+              return;
+            }
+          }
+        } catch {
+          // Skip
+        }
+      }
+
+      // 2. Fallback: Search all open/available platform chit groups for active auction
+      const available =
+        state.availableGroups.length > 0
+          ? state.availableGroups
+          : await apiClient
+              .get('/chit-groups')
+              .then((r) => r.data?.data?.items || [])
+              .catch(() => []);
+
+      for (const group of available) {
+        try {
+          const res = await apiClient.get(`/chit-groups/${group.id}/auctions`);
+          const auctions = res.data?.data?.items || [];
+          const liveAuction = auctions.find((a: any) => a.status === 'LIVE' || a.status === 'SCHEDULED');
+          if (liveAuction) {
+            const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
+            const detail = detailRes.data?.data;
+            if (detail) {
+              const bidsRes = detail.liveState?.bids || [];
+              set({
+                currentAuction: {
+                  id: detail.id,
+                  chit_group_id: detail.chit_group_id,
+                  chit_group_name: group.name || 'Chit Group',
+                  month_number: detail.month_number,
+                  status: detail.status === 'LIVE' ? 'IN_PROGRESS' : 'SCHEDULED',
+                  scheduled_at: detail.scheduled_at || new Date().toISOString(),
+                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || 0),
+                  chit_amount: Number(group.chit_amount),
+                  total_subscribers: group.duration_months || 20,
+                  present_subscribers: Number(detail.liveState?.presentCount || 0),
+                  remaining_seconds: Number(detail.liveState?.remainingSeconds || 0),
+                  bids: bidsRes.map((b: any) => ({
+                    id: b.id || `b-${Date.now()}`,
+                    bidder_name: b.bidder_name || `Ticket #${b.ticket_number}`,
+                    ticket_number: Number(b.ticket_number || 0),
+                    bid_pct: Number(b.bid_pct),
+                    discount_amount: (Number(group.chit_amount) * Number(b.bid_pct)) / 100,
+                    timestamp: b.bid_at ? new Date(b.bid_at).toLocaleTimeString('en-IN', { hour12: false }) : '',
+                  })),
+                },
+              });
+              return;
+            }
+          }
+        } catch {
+          // Skip
+        }
+      }
+
+      // No live auction found
+      set({ currentAuction: null });
+    } catch (err: any) {
+      console.warn('Failed to fetch current auction:', err.message);
     }
   },
 
@@ -959,9 +1020,42 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setOffline: (offline) =>
+  setOffline: (offline) => {
+    const wasOffline = get().isOffline;
     set({
       isOffline: offline,
       lastSynced: new Date().toLocaleTimeString('en-IN'),
-    }),
+    });
+    if (wasOffline && !offline) {
+      get().reSyncAll();
+    }
+  },
+
+  reSyncAll: async () => {
+    const state = get();
+    const tasks: Promise<any>[] = [state.fetchAvailableGroups()];
+    if (state.user?.id) {
+      tasks.push(state.fetchActiveChits());
+      tasks.push(state.fetchPaymentHistory());
+      tasks.push(state.fetchUserProfile());
+      tasks.push(state.fetchCurrentAuction());
+      if (state.user.role === 'admin') {
+        tasks.push(state.fetchAdminDashboard());
+        tasks.push(state.fetchPendingKyc());
+        tasks.push(state.fetchPendingDocuments());
+      }
+    }
+    await Promise.allSettled(tasks);
+    set({ lastSynced: new Date().toLocaleTimeString('en-IN') });
+  },
 }));
+
+// Global hooks for reactive connectivity and session expiration
+onConnectivityChange((isOnline) => {
+  useAppStore.getState().setOffline(!isOnline);
+});
+
+onUnauthorized(() => {
+  useAppStore.getState().logout();
+});
+

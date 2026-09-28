@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Naveen Chit fund",
-    "slug": "chittech-frontend",
+    "name": "Naveen Chit Fund",
+    "slug": "naveen-chit-fund",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -22,7 +22,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.chittech.app"
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.naveenchitfund.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

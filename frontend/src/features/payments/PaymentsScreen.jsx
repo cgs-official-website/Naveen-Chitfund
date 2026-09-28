@@ -8,12 +8,12 @@ import {
   Modal,
   RefreshControl,
   ActivityIndicator,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { useAppStore } from '../../store/useAppStore';
 import {
   CreditCard,
@@ -445,7 +445,7 @@ export const PaymentsScreen = () => {
 
               <View style={[styles.receiptPreview, { backgroundColor: theme.surface.inputBg, borderColor: theme.surface.border }]}>
                 <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700' }]}>
-                  CHITTECH FOREMAN SERVICES PVT LTD
+                  NAVEEN CHIT FUND FOREMAN SERVICES PVT LTD
                 </Text>
                 <Text style={[typography.caption, { color: theme.text.muted, fontSize: 10 }]}>
                   GSTIN: 36AAACC1206M1ZP · RBI PSO Registered

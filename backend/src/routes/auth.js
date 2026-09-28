@@ -11,7 +11,7 @@ const router = express.Router();
 
 const otpRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many OTP requests, try again later' },
@@ -19,7 +19,7 @@ const otpRequestLimiter = rateLimit({
 
 const otpVerifyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many verification attempts, try again later' },
@@ -34,6 +34,16 @@ const verifySchema = z.object({
   code: z.string().length(6),
   fullName: z.string().min(2).optional(),
   role: z.enum(['user', 'admin']).optional(),
+});
+
+const directRegisterSchema = z.object({
+  phone: z.string().regex(/^\+?[0-9]{10,15}$/, 'Invalid phone number'),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+  role: z.enum(['user', 'admin']).optional().default('user'),
+});
+
+const directLoginSchema = z.object({
+  phone: z.string().regex(/^\+?[0-9]{10,15}$/, 'Invalid phone number'),
 });
 
 function signToken(user) {
@@ -109,6 +119,84 @@ router.post(
         [fullName.trim(), user.id]
       );
       user = update.rows[0];
+    }
+
+    const token = signToken(user);
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        role: user.role,
+        user: {
+          id: user.id,
+          fullName: user.full_name,
+          phone: user.phone,
+          role: user.role,
+          kycStatus: user.kyc_status,
+        },
+      },
+    });
+  })
+);
+
+// POST /api/v1/auth/register-direct -> creates user without OTP verification
+router.post(
+  '/register-direct',
+  validateBody(directRegisterSchema),
+  asyncHandler(async (req, res) => {
+    const { phone, fullName, role } = req.body;
+
+    let userResult = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    let user = userResult.rows[0];
+
+    if (!user) {
+      const assignedRole = role === 'admin' ? 'admin' : 'user';
+      const insert = await query(
+        `INSERT INTO users (full_name, phone, role)
+         VALUES ($1, $2, $3) RETURNING *`,
+        [fullName.trim(), phone, assignedRole]
+      );
+      user = insert.rows[0];
+    } else {
+      const update = await query(
+        `UPDATE users SET full_name = $1, role = COALESCE($2, role) WHERE id = $3 RETURNING *`,
+        [fullName.trim(), role || user.role, user.id]
+      );
+      user = update.rows[0];
+    }
+
+    const token = signToken(user);
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        role: user.role,
+        user: {
+          id: user.id,
+          fullName: user.full_name,
+          phone: user.phone,
+          role: user.role,
+          kycStatus: user.kyc_status,
+        },
+      },
+    });
+  })
+);
+
+// POST /api/v1/auth/login-direct -> logs in user without OTP verification
+router.post(
+  '/login-direct',
+  validateBody(directLoginSchema),
+  asyncHandler(async (req, res) => {
+    const { phone } = req.body;
+
+    const userResult = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    const user = userResult.rows[0];
+
+    if (!user) {
+      throw new ApiError(404, 'No account found with this mobile number. Please register first.');
     }
 
     const token = signToken(user);

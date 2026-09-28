@@ -24,6 +24,7 @@ import adminRoutes from './routes/admin.js';
 import suretyRoutes from './routes/sureties.js';
 import complianceRoutes from './routes/compliance.js';
 import mediaRoutes from './routes/media.js';
+import superAdminRoutes from './routes/superadmin/index.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -86,6 +87,7 @@ app.use('/api/v1/sureties', suretyRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/compliance', complianceRoutes);
 app.use('/api/v1/media', mediaRoutes);
+app.use('/api/v1/superadmin', superAdminRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -95,7 +97,7 @@ const PORT = process.env.PORT || 4000;
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isDirectRun) {
   server.listen(PORT, () => {
-    console.log(`ChitTech backend listening on port ${PORT}`);
+    console.log(`Naveen Chit Fund backend listening on port ${PORT}`);
   });
 
   const gracefulShutdown = async (signal) => {

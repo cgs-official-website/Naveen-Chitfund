@@ -8,13 +8,13 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
 import { Input } from '../../core/components/Input';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { TransparencyBadge } from '../../core/components/TransparencyBadge';
 import { useAppStore } from '../../store/useAppStore';
 import {
@@ -87,8 +87,10 @@ export const ChitDiscoveryScreen = ({
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.surface.base }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { flexGrow: 1, paddingBottom: 60 }]}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       refreshControl={
         <RefreshControl
           refreshing={availableGroupsLoading}
