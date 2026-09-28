@@ -83,12 +83,9 @@ export const LandingPage = () => {
               alt="Naveen Chit Logo"
               className="w-10 h-10 rounded-xl object-contain shadow-sm border border-gold-300/40"
             />
-            <div className="flex items-center gap-1.5">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-[#4E1327]">
-                Naveen Chit
-              </span>
-              <span className="w-2 h-2 rounded-full bg-gold-500"></span>
-            </div>
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-[#4E1327]">
+              Naveen Chit
+            </span>
           </div>
 
           {/* Navigation Links */}
