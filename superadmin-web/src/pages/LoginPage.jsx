@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Shield, Lock, AlertCircle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff, Shield, Lock, AlertCircle, Sun, Moon, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 import { api } from '../api/client';
 export const LoginPage = () => {
     const navigate = useNavigate();
     const { isAuthenticated, login } = useAuthStore();
+    const { isDark, toggleTheme } = useThemeStore();
     const [email, setEmail] = useState('admin@naveenchit.com');
     const [password, setPassword] = useState('12345678');
     const [showPassword, setShowPassword] = useState(false);
@@ -84,8 +86,25 @@ export const LoginPage = () => {
         </div>
 
         {/* Right Form Panel */}
-        <div className="p-8 sm:p-10 flex flex-col justify-center">
-          <div className="mb-8">
+        <div className="p-8 sm:p-10 flex flex-col justify-center relative">
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#7A1F3D] dark:text-slate-400 dark:hover:text-gold-400 transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to Home
+            </Link>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-950 text-slate-700 dark:text-gold-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition cursor-pointer"
+              aria-label="Toggle dark/light theme"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-gold-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+            </button>
+          </div>
+
+          <div className="mb-6">
             <div className="md:hidden flex items-center gap-2.5 mb-4">
               <img src="/logo.png" alt="Naveen Chit Logo" className="w-9 h-9 rounded-lg object-contain" />
               <span className="font-extrabold text-lg tracking-wide text-slate-900 dark:text-slate-100">NAVEEN CHIT</span>

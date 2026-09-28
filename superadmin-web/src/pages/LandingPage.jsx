@@ -26,10 +26,14 @@ import {
   CheckCircle2,
   FileText,
   BadgeCheck,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useThemeStore } from '../store/themeStore';
 import { CurrencyText } from '../components/common/CurrencyText';
 
 export const LandingPage = () => {
+  const { isDark, toggleTheme } = useThemeStore();
   const [openFaq, setOpenFaq] = useState(null);
   const [calcChitAmount, setCalcChitAmount] = useState(500000);
   const [calcTenure, setCalcTenure] = useState(20);
@@ -68,14 +72,14 @@ export const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4EFE6] p-2 sm:p-4 md:p-6 lg:p-8 flex justify-center selection:bg-gold-500 selection:text-maroon-950 font-sans">
+    <div className="min-h-screen bg-[#F4EFE6] dark:bg-[#0D0509] p-2 sm:p-4 md:p-6 lg:p-8 flex justify-center selection:bg-gold-500 selection:text-maroon-950 font-sans transition-colors duration-300">
       {/* Outer Card Enclosure matching the reference design frame */}
-      <div className="w-full max-w-[1360px] bg-[#FAF8F5] text-slate-900 rounded-[28px] sm:rounded-[38px] shadow-2xl border border-stone-200/90 overflow-hidden flex flex-col">
+      <div className="w-full max-w-[1360px] bg-[#FAF8F5] dark:bg-[#190C13] text-slate-900 dark:text-slate-100 rounded-[28px] sm:rounded-[38px] shadow-2xl border border-stone-200/90 dark:border-maroon-900/60 overflow-hidden flex flex-col transition-colors duration-300">
         
         {/* ========================================================= */}
         {/* 1. TOP NAVBAR                                             */}
         {/* ========================================================= */}
-        <header className="px-6 sm:px-10 lg:px-12 py-5 sm:py-6 flex items-center justify-between border-b border-stone-200/60 bg-white/70 backdrop-blur-md sticky top-0 z-50">
+        <header className="px-6 sm:px-10 lg:px-12 py-5 sm:py-6 flex items-center justify-between border-b border-stone-200/60 dark:border-maroon-900/50 bg-white/70 dark:bg-[#190C13]/90 backdrop-blur-md sticky top-0 z-50 transition-colors">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <img
@@ -83,34 +87,51 @@ export const LandingPage = () => {
               alt="Naveen Chit Logo"
               className="w-10 h-10 rounded-xl object-contain shadow-sm border border-gold-300/40"
             />
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-[#4E1327]">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-[#4E1327] dark:text-gold-400">
               Naveen Chit
             </span>
           </div>
 
           {/* Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-8 text-[13px] font-semibold text-stone-600">
-            <a href="#features" className="hover:text-[#7A1F3D] transition">Features</a>
-            <a href="#how-it-works" className="hover:text-[#7A1F3D] transition">How It Works</a>
-            <a href="#app-showcase" className="hover:text-[#7A1F3D] transition">Mobile App</a>
-            <a href="#calculator" className="hover:text-[#7A1F3D] transition">Yield Calculator</a>
-            <a href="#compliance" className="hover:text-[#7A1F3D] transition">Statutory Trust</a>
-            <a href="#faqs" className="hover:text-[#7A1F3D] transition">FAQs</a>
+          <nav className="hidden lg:flex items-center gap-8 text-[13px] font-semibold text-stone-600 dark:text-stone-300">
+            <a href="#features" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Features</a>
+            <a href="#how-it-works" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">How It Works</a>
+            <a href="#app-showcase" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Mobile App</a>
+            <a href="#calculator" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Yield Calculator</a>
+            <a href="#compliance" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">Statutory Trust</a>
+            <a href="#faqs" className="hover:text-[#7A1F3D] dark:hover:text-gold-300 transition">FAQs</a>
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 sm:px-3 sm:py-2 rounded-full border border-stone-200 dark:border-maroon-800/80 bg-white/80 dark:bg-[#25121D] text-stone-700 dark:text-gold-300 hover:bg-stone-100 dark:hover:bg-[#381B2D] transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              aria-label="Toggle dark/light theme"
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDark ? (
+                <Sun className="w-4 h-4 text-gold-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#7A1F3D]" />
+              )}
+              <span className="text-xs font-bold hidden sm:inline">
+                {isDark ? 'Light Mode' : 'Dark Mode'}
+              </span>
+            </button>
+
             <Link
               to="/chit"
-              className="text-xs sm:text-sm font-bold text-stone-700 hover:text-[#7A1F3D] transition px-2 py-1"
+              className="text-xs sm:text-sm font-bold text-stone-700 dark:text-stone-200 hover:text-[#7A1F3D] dark:hover:text-gold-300 transition px-2 py-1"
             >
               Login
             </Link>
             <Link
               to="/chit"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4E1327] hover:bg-[#7A1F3D] text-[#FFFDF9] font-bold text-xs uppercase tracking-wider shadow-md shadow-maroon-900/10 transition-transform active:scale-95"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4E1327] hover:bg-[#7A1F3D] dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-950 text-[#FFFDF9] font-bold text-xs uppercase tracking-wider shadow-md shadow-maroon-900/10 transition-transform active:scale-95"
             >
-              <Lock className="w-3.5 h-3.5 text-gold-400" />
+              <Lock className="w-3.5 h-3.5 text-gold-400 dark:text-navy-950" />
               Superadmin Portal
             </Link>
           </div>
@@ -119,16 +140,16 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 2. HERO SECTION (With Central Floating Phone Mockup)      */}
         {/* ========================================================= */}
-        <section className="relative px-6 sm:px-10 lg:px-16 pt-10 sm:pt-14 pb-16 sm:pb-20 overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#FDFBF7] to-[#F5ECE0]">
+        <section className="relative px-6 sm:px-10 lg:px-16 pt-10 sm:pt-14 pb-16 sm:pb-20 overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#FDFBF7] to-[#F5ECE0] dark:from-[#190C13] dark:via-[#160A10] dark:to-[#0F060A] transition-colors">
           {/* Social Proof Pill */}
           <div className="flex justify-center mb-6 sm:mb-8">
-            <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/90 border border-stone-200/90 shadow-sm text-xs font-semibold text-stone-700">
+            <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-white/90 dark:bg-[#25121D] border border-stone-200/90 dark:border-maroon-800 shadow-sm text-xs font-semibold text-stone-700 dark:text-stone-200">
               <div className="flex -space-x-1.5 overflow-hidden">
-                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white bg-[#7A1F3D] text-[9px] font-bold text-white flex items-center justify-center">AS</span>
-                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white bg-[#C9A227] text-[9px] font-bold text-navy-950 flex items-center justify-center">PS</span>
-                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white bg-[#2E7D4F] text-[9px] font-bold text-white flex items-center justify-center">RK</span>
+                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-navy-950 bg-[#7A1F3D] text-[9px] font-bold text-white flex items-center justify-center">AS</span>
+                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-navy-950 bg-[#C9A227] text-[9px] font-bold text-navy-950 flex items-center justify-center">PS</span>
+                <span className="inline-block h-5 w-5 rounded-full ring-2 ring-white dark:ring-navy-950 bg-[#2E7D4F] text-[9px] font-bold text-white flex items-center justify-center">RK</span>
               </div>
-              <span>Over <strong className="text-[#4E1327]">10,000+</strong> members saving with Naveen Chit Fund</span>
+              <span>Over <strong className="text-[#4E1327] dark:text-gold-400">10,000+</strong> members saving with Naveen Chit Fund</span>
               <div className="flex text-amber-500 text-[10px]">
                 ★★★★★
               </div>
@@ -139,7 +160,7 @@ export const LandingPage = () => {
           <div className="max-w-5xl mx-auto text-center relative z-10">
             <div className="relative">
               {/* Massive 3-Line Title matching reference design */}
-              <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-[84px] font-black text-[#360D1B] tracking-[-0.035em] leading-[1.05] max-w-4xl mx-auto">
+              <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-[84px] font-black text-[#360D1B] dark:text-[#FFFDF9] tracking-[-0.035em] leading-[1.05] max-w-4xl mx-auto">
                 Control Your <br />
                 Chit Fund And <br />
                 Finance Easily
@@ -149,29 +170,29 @@ export const LandingPage = () => {
               <div className="my-8 sm:my-10 flex justify-center">
                 <div className="w-[280px] sm:w-[320px] rounded-[44px] bg-[#160C10] p-3 shadow-2xl shadow-maroon-900/30 border-[6px] border-stone-900/90 transform hover:-translate-y-1 transition duration-500">
                   {/* Phone Screen Container */}
-                  <div className="rounded-[36px] bg-[#FFFDF9] overflow-hidden text-left text-slate-900 border border-stone-200/60 font-sans">
+                  <div className="rounded-[36px] bg-[#FFFDF9] dark:bg-[#1E0E17] overflow-hidden text-left text-slate-900 dark:text-slate-100 border border-stone-200/60 dark:border-maroon-850 font-sans">
                     {/* Status Bar */}
-                    <div className="px-5 pt-3 pb-2 flex justify-between items-center text-[10px] font-bold text-slate-700">
+                    <div className="px-5 pt-3 pb-2 flex justify-between items-center text-[10px] font-bold text-slate-700 dark:text-slate-300">
                       <span>9:41</span>
                       <div className="w-16 h-3.5 bg-black rounded-full mx-auto -mt-1"></div>
                       <div className="flex items-center gap-1">
                         <span>5G</span>
-                        <div className="w-3.5 h-2 border border-slate-700 rounded-xs flex items-center p-0.5">
-                          <div className="w-full h-full bg-slate-700"></div>
+                        <div className="w-3.5 h-2 border border-slate-700 dark:border-slate-300 rounded-xs flex items-center p-0.5">
+                          <div className="w-full h-full bg-slate-700 dark:bg-slate-300"></div>
                         </div>
                       </div>
                     </div>
 
                     {/* App Header */}
-                    <div className="px-4 py-2 flex items-center justify-between border-b border-stone-100">
+                    <div className="px-4 py-2 flex items-center justify-between border-b border-stone-100 dark:border-maroon-900/60">
                       <div className="flex items-center gap-2">
                         <img src="/logo.png" alt="Logo" className="w-6 h-6 rounded-md" />
                         <div>
-                          <div className="text-[11px] font-bold text-[#4E1327] leading-tight">Naveen Chit Fund</div>
+                          <div className="text-[11px] font-bold text-[#4E1327] dark:text-gold-400 leading-tight">Naveen Chit Fund</div>
                           <div className="text-[9px] text-stone-400">Govt. Regulated ROSCA</div>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300/30">
                         VERIFIED
                       </span>
                     </div>
@@ -194,36 +215,36 @@ export const LandingPage = () => {
                     </div>
 
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-3 gap-2 p-3 bg-stone-50 border-b border-stone-100 text-center">
-                      <div className="p-2 rounded-xl bg-white border border-stone-200/80 shadow-xs">
-                        <div className="text-[10px] font-bold text-[#7A1F3D]">Bid 24%</div>
+                    <div className="grid grid-cols-3 gap-2 p-3 bg-stone-50 dark:bg-[#160A10] border-b border-stone-100 dark:border-maroon-900/60 text-center">
+                      <div className="p-2 rounded-xl bg-white dark:bg-[#25121D] border border-stone-200/80 dark:border-maroon-800/80 shadow-xs">
+                        <div className="text-[10px] font-bold text-[#7A1F3D] dark:text-gold-400">Bid 24%</div>
                         <div className="text-[8px] text-stone-400 mt-0.5">Place Bid</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-[#7A1F3D] text-white shadow-xs">
-                        <div className="text-[10px] font-bold text-gold-300">Pay Due</div>
-                        <div className="text-[8px] text-white/80 mt-0.5">₹20,125</div>
+                      <div className="p-2 rounded-xl bg-[#7A1F3D] dark:bg-gold-500 text-white dark:text-navy-950 shadow-xs">
+                        <div className="text-[10px] font-bold text-gold-300 dark:text-navy-950">Pay Due</div>
+                        <div className="text-[8px] text-white/80 dark:text-navy-900/80 mt-0.5">₹20,125</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white border border-stone-200/80 shadow-xs">
-                        <div className="text-[10px] font-bold text-stone-700">Ledger</div>
+                      <div className="p-2 rounded-xl bg-white dark:bg-[#25121D] border border-stone-200/80 dark:border-maroon-800/80 shadow-xs">
+                        <div className="text-[10px] font-bold text-stone-700 dark:text-stone-300">Ledger</div>
                         <div className="text-[8px] text-stone-400 mt-0.5">0.00 drift</div>
                       </div>
                     </div>
 
                     {/* Active Feed Item */}
                     <div className="p-3 space-y-2">
-                      <div className="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70 flex items-center justify-between text-[11px]">
+                      <div className="p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 flex items-center justify-between text-[11px]">
                         <div>
-                          <span className="font-bold text-emerald-950 block">Dividend Credited</span>
-                          <span className="text-[9px] text-emerald-700">Month #4 Auction Offset</span>
+                          <span className="font-bold text-emerald-950 dark:text-emerald-300 block">Dividend Credited</span>
+                          <span className="text-[9px] text-emerald-700 dark:text-emerald-400">Month #4 Auction Offset</span>
                         </div>
-                        <span className="font-bold text-emerald-700">+₹4,875</span>
+                        <span className="font-bold text-emerald-700 dark:text-emerald-300">+₹4,875</span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-white border border-stone-200/80 flex items-center justify-between text-[11px]">
+                      <div className="p-2.5 rounded-xl bg-white dark:bg-[#25121D] border border-stone-200/80 dark:border-maroon-800 flex items-center justify-between text-[11px]">
                         <div>
-                          <span className="font-bold text-slate-800 block">Leading Discount Bid</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 block">Leading Discount Bid</span>
                           <span className="text-[9px] text-stone-400">Ticket #12 (Bid: 24.5%)</span>
                         </div>
-                        <span className="font-bold text-gold-600">₹3,75,000</span>
+                        <span className="font-bold text-gold-600 dark:text-gold-400">₹3,75,000</span>
                       </div>
                     </div>
                   </div>
@@ -231,7 +252,7 @@ export const LandingPage = () => {
               </div>
 
               {/* Subtitle */}
-              <p className="mt-4 text-base sm:text-lg text-stone-600 max-w-2xl mx-auto leading-relaxed font-normal">
+              <p className="mt-4 text-base sm:text-lg text-stone-600 dark:text-stone-300 max-w-2xl mx-auto leading-relaxed font-normal">
                 Introducing Naveen Chit Fund, India's premier digital ROSCA savings and credit platform.
                 Participate in 100% bank-guaranteed chit funds, save with high dividend yields, and borrow
                 instantly via transparent, real-time reverse auctions.
@@ -241,19 +262,19 @@ export const LandingPage = () => {
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
                   href="#how-it-works"
-                  className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-[#360D1B] hover:bg-[#4E1327] text-white font-bold text-sm tracking-wide shadow-lg shadow-maroon-950/20 transition-all hover:scale-105"
+                  className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-[#360D1B] hover:bg-[#4E1327] dark:bg-gold-500 dark:hover:bg-gold-400 dark:text-navy-950 text-white font-bold text-sm tracking-wide shadow-lg shadow-maroon-950/20 transition-all hover:scale-105"
                 >
                   <span>Explore Active Chits</span>
-                  <div className="w-5 h-5 rounded-full bg-[#7A1F3D] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full bg-[#7A1F3D] dark:bg-navy-950 flex items-center justify-center">
                     <ArrowUpRight className="w-3.5 h-3.5 text-gold-300" />
                   </div>
                 </a>
 
                 <Link
                   to="/chit"
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 font-semibold text-sm transition shadow-sm"
+                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-white dark:bg-[#25121D] hover:bg-stone-50 dark:hover:bg-[#381B2D] border border-stone-300 dark:border-maroon-800 text-stone-800 dark:text-stone-200 font-semibold text-sm transition shadow-sm"
                 >
-                  <Lock className="w-4 h-4 text-[#7A1F3D]" />
+                  <Lock className="w-4 h-4 text-[#7A1F3D] dark:text-gold-400" />
                   <span>Superadmin Console</span>
                 </Link>
               </div>
@@ -263,40 +284,40 @@ export const LandingPage = () => {
           {/* ========================================================= */}
           {/* 3. TRUST & METRICS STRIP (Soft Card matching reference)   */}
           {/* ========================================================= */}
-          <div className="max-w-5xl mx-auto mt-14 sm:mt-16 bg-white/95 rounded-[26px] p-6 sm:p-8 border border-stone-200/90 shadow-md">
+          <div className="max-w-5xl mx-auto mt-14 sm:mt-16 bg-white/95 dark:bg-[#22101A] rounded-[26px] p-6 sm:p-8 border border-stone-200/90 dark:border-maroon-800/80 shadow-md transition-colors">
             {/* Top Partner Strip inside pill */}
-            <div className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-maroon-500/10 to-emerald-500/10 border border-gold-300/40 text-center mb-6">
-              <span className="text-[11px] sm:text-xs font-bold text-[#4E1327] uppercase tracking-wider">
+            <div className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-maroon-500/10 to-emerald-500/10 dark:from-maroon-900/40 dark:via-gold-900/30 dark:to-maroon-900/40 border border-gold-300/40 dark:border-gold-500/20 text-center mb-6">
+              <span className="text-[11px] sm:text-xs font-bold text-[#4E1327] dark:text-gold-300 uppercase tracking-wider">
                 Trusted by 10,000+ subscribers across Telangana & Andhra Pradesh • Registered Under Chit Funds Act, 1982
               </span>
             </div>
 
             {/* Regulatory Partners row */}
-            <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 pb-6 border-b border-stone-100 text-xs font-semibold text-stone-500">
-              <span className="flex items-center gap-1.5"><Building className="w-4 h-4 text-[#7A1F3D]" /> ROC Telangana</span>
+            <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 pb-6 border-b border-stone-100 dark:border-maroon-900/60 text-xs font-semibold text-stone-500 dark:text-stone-300">
+              <span className="flex items-center gap-1.5"><Building className="w-4 h-4 text-[#7A1F3D] dark:text-gold-400" /> ROC Telangana</span>
               <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-[#C9A227]" /> 100% Bank FDR</span>
-              <span className="flex items-center gap-1.5"><CreditCard className="w-4 h-4 text-emerald-600" /> Razorpay Secured</span>
-              <span className="flex items-center gap-1.5"><FileCheck2 className="w-4 h-4 text-blue-600" /> Form XIV Certified</span>
-              <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-purple-600" /> DPDP Act 2023</span>
+              <span className="flex items-center gap-1.5"><CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Razorpay Secured</span>
+              <span className="flex items-center gap-1.5"><FileCheck2 className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Form XIV Certified</span>
+              <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-purple-600 dark:text-purple-400" /> DPDP Act 2023</span>
             </div>
 
             {/* 4 Big Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 text-center">
               <div>
-                <div className="text-2xl sm:text-4xl font-black text-[#360D1B]">₹50 Cr+</div>
-                <div className="text-xs text-stone-500 mt-1 font-semibold uppercase tracking-wider">Chit Pool AUM</div>
+                <div className="text-2xl sm:text-4xl font-black text-[#360D1B] dark:text-white">₹50 Cr+</div>
+                <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-semibold uppercase tracking-wider">Chit Pool AUM</div>
               </div>
               <div>
-                <div className="text-2xl sm:text-4xl font-black text-[#7A1F3D]">10,000+</div>
-                <div className="text-xs text-stone-500 mt-1 font-semibold uppercase tracking-wider">Active Subscribers</div>
+                <div className="text-2xl sm:text-4xl font-black text-[#7A1F3D] dark:text-gold-400">10,000+</div>
+                <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-semibold uppercase tracking-wider">Active Subscribers</div>
               </div>
               <div>
-                <div className="text-2xl sm:text-4xl font-black text-[#C9A227]">100%</div>
-                <div className="text-xs text-stone-500 mt-1 font-semibold uppercase tracking-wider">FDR Bank Escrow</div>
+                <div className="text-2xl sm:text-4xl font-black text-[#C9A227] dark:text-gold-300">100%</div>
+                <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-semibold uppercase tracking-wider">FDR Bank Escrow</div>
               </div>
               <div>
-                <div className="text-2xl sm:text-4xl font-black text-emerald-700">&lt; 48h</div>
-                <div className="text-xs text-stone-500 mt-1 font-semibold uppercase tracking-wider">Statutory Minutes</div>
+                <div className="text-2xl sm:text-4xl font-black text-emerald-700 dark:text-emerald-400">&lt; 48h</div>
+                <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-semibold uppercase tracking-wider">Statutory Minutes</div>
               </div>
             </div>
           </div>
@@ -305,29 +326,29 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 4. FEATURE 1: "Join 10,000+ people who already trust us"  */}
         {/* ========================================================= */}
-        <section id="features" className="px-6 sm:px-12 lg:px-20 py-20 sm:py-24 border-t border-stone-200/80 bg-white">
+        <section id="features" className="px-6 sm:px-12 lg:px-20 py-20 sm:py-24 border-t border-stone-200/80 dark:border-maroon-900/60 bg-white dark:bg-[#150A10] transition-colors">
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-maroon-50 border border-maroon-200/60 text-[#7A1F3D] text-xs font-bold uppercase tracking-wider">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-maroon-50 dark:bg-maroon-950/60 border border-maroon-200/60 dark:border-maroon-800 text-[#7A1F3D] dark:text-gold-400 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-gold-500" />
                 Zero Floating-Point Precision
               </div>
 
-              <h2 className="text-3xl sm:text-5xl lg:text-[52px] font-black text-[#360D1B] tracking-tight leading-[1.12]">
+              <h2 className="text-3xl sm:text-5xl lg:text-[52px] font-black text-[#360D1B] dark:text-white tracking-tight leading-[1.12]">
                 Join 10,000+ members who already trust us with their monthly savings.
               </h2>
 
-              <p className="text-base text-stone-600 leading-relaxed font-normal">
+              <p className="text-base text-stone-600 dark:text-stone-300 leading-relaxed font-normal">
                 Join verified subscribers who choose Naveen Chit Fund for their disciplined wealth building and capital access needs. Every rupee of chit prize money is secured by 100% Fixed Deposit Receipts pledged with the Registrar of Chits before auction rooms open.
               </p>
 
               <div className="pt-2 flex items-center gap-4">
                 <a
                   href="#how-it-works"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-xs uppercase tracking-wider transition"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 border border-emerald-300/40 text-emerald-900 dark:text-emerald-300 font-bold text-xs uppercase tracking-wider transition"
                 >
-                  <Play className="w-4 h-4 fill-emerald-800 text-emerald-800" />
+                  <Play className="w-4 h-4 fill-emerald-800 dark:fill-emerald-400 text-emerald-800 dark:text-emerald-400" />
                   Watch Chit Mechanics
                 </a>
               </div>
@@ -336,45 +357,45 @@ export const LandingPage = () => {
             {/* Right: Phone in Hand / Angle Preview */}
             <div className="lg:col-span-5 flex justify-center">
               <div className="w-[280px] sm:w-[310px] rounded-[44px] bg-[#160C10] p-3 shadow-2xl border-[6px] border-stone-900 transform lg:rotate-2 hover:rotate-0 transition duration-500">
-                <div className="rounded-[36px] bg-[#FAF8F5] overflow-hidden text-left p-4 space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-stone-200">
+                <div className="rounded-[36px] bg-[#FAF8F5] dark:bg-[#1E0E17] overflow-hidden text-left p-4 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-maroon-900/60">
                     <div>
-                      <div className="text-xs font-bold text-[#4E1327]">Explore Active Chits</div>
+                      <div className="text-xs font-bold text-[#4E1327] dark:text-gold-400">Explore Active Chits</div>
                       <div className="text-[10px] text-stone-400">Guaranteed State Registrations</div>
                     </div>
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                   </div>
 
                   {/* Chit Card 1 */}
-                  <div className="p-3.5 rounded-2xl bg-white border border-stone-200 shadow-sm space-y-2">
+                  <div className="p-3.5 rounded-2xl bg-white dark:bg-[#25121D] border border-stone-200 dark:border-maroon-800 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#4E1327]">Smart Wealth (Gold-20)</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-100 text-gold-800 font-bold">OPEN</span>
+                      <span className="text-xs font-bold text-[#4E1327] dark:text-gold-400">Smart Wealth (Gold-20)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-100 dark:bg-gold-950 text-gold-800 dark:text-gold-300 font-bold border border-gold-300/30">OPEN</span>
                     </div>
-                    <div className="text-lg font-black text-stone-900">₹5,00,000</div>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-stone-500 pt-1 border-t border-stone-100">
-                      <div>Monthly: <strong className="text-stone-800">₹25,000</strong></div>
-                      <div>Tenure: <strong className="text-stone-800">20 Months</strong></div>
+                    <div className="text-lg font-black text-stone-900 dark:text-white">₹5,00,000</div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-stone-500 dark:text-stone-400 pt-1 border-t border-stone-100 dark:border-maroon-900/50">
+                      <div>Monthly: <strong className="text-stone-800 dark:text-stone-200">₹25,000</strong></div>
+                      <div>Tenure: <strong className="text-stone-800 dark:text-stone-200">20 Months</strong></div>
                     </div>
-                    <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#7A1F3D] h-full w-[95%]"></div>
+                    <div className="w-full bg-stone-100 dark:bg-navy-950 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-[#7A1F3D] dark:bg-gold-500 h-full w-[95%]"></div>
                     </div>
                     <div className="flex items-center justify-between text-[9px] text-stone-400">
                       <span>19/20 Slots Enrolled</span>
-                      <span className="text-[#7A1F3D] font-bold">1 Seat Left</span>
+                      <span className="text-[#7A1F3D] dark:text-gold-400 font-bold">1 Seat Left</span>
                     </div>
                   </div>
 
                   {/* Chit Card 2 */}
-                  <div className="p-3.5 rounded-2xl bg-white border border-stone-200 shadow-sm space-y-2">
+                  <div className="p-3.5 rounded-2xl bg-white dark:bg-[#25121D] border border-stone-200 dark:border-maroon-800 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#4E1327]">Enterprise Chit (E-40)</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">ACTIVE</span>
+                      <span className="text-xs font-bold text-[#4E1327] dark:text-gold-400">Enterprise Chit (E-40)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300/30">ACTIVE</span>
                     </div>
-                    <div className="text-lg font-black text-stone-900">₹10,00,000</div>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-stone-500 pt-1 border-t border-stone-100">
-                      <div>Monthly: <strong className="text-stone-800">₹25,000</strong></div>
-                      <div>Tenure: <strong className="text-stone-800">40 Months</strong></div>
+                    <div className="text-lg font-black text-stone-900 dark:text-white">₹10,00,000</div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-stone-500 dark:text-stone-400 pt-1 border-t border-stone-100 dark:border-maroon-900/50">
+                      <div>Monthly: <strong className="text-stone-800 dark:text-stone-200">₹25,000</strong></div>
+                      <div>Tenure: <strong className="text-stone-800 dark:text-stone-200">40 Months</strong></div>
                     </div>
                   </div>
                 </div>
@@ -386,17 +407,17 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 5. FEATURE 2: Horizontal Card Display ("Simplify wallet") */}
         {/* ========================================================= */}
-        <section className="px-6 sm:px-12 lg:px-20 py-20 sm:py-24 border-t border-stone-200/80 bg-[#FAF8F5]">
+        <section className="px-6 sm:px-12 lg:px-20 py-20 sm:py-24 border-t border-stone-200/80 dark:border-maroon-900/60 bg-[#FAF8F5] dark:bg-[#190C13] transition-colors">
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
             {/* Left: Landscape Phone / Ticket Deck Mockup */}
             <div className="lg:col-span-6 flex justify-center order-2 lg:order-1">
-              <div className="w-full max-w-[420px] rounded-[32px] bg-white p-6 shadow-xl border border-stone-200/90 space-y-3">
-                <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="w-full max-w-[420px] rounded-[32px] bg-white dark:bg-[#22101A] p-6 shadow-xl border border-stone-200/90 dark:border-maroon-800/80 space-y-3">
+                <div className="flex items-center justify-between border-b border-stone-100 dark:border-maroon-900/60 pb-3">
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-[#7A1F3D]" />
-                    <span className="text-xs font-bold text-stone-800">My Subscribed Chit Tickets</span>
+                    <CreditCard className="w-4 h-4 text-[#7A1F3D] dark:text-gold-400" />
+                    <span className="text-xs font-bold text-stone-800 dark:text-stone-200">My Subscribed Chit Tickets</span>
                   </div>
-                  <span className="text-[10px] font-bold text-[#C9A227] bg-amber-50 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold text-[#C9A227] bg-amber-50 dark:bg-amber-950/60 border border-amber-300/30 px-2.5 py-0.5 rounded-full">
                     2 Active Pools
                   </span>
                 </div>
@@ -425,25 +446,25 @@ export const LandingPage = () => {
                 </div>
 
                 {/* Installment Breakdown Card */}
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200/80 space-y-2 text-xs">
-                  <div className="flex justify-between text-stone-600">
+                <div className="p-4 rounded-2xl bg-stone-50 dark:bg-[#1A0C14] border border-stone-200/80 dark:border-maroon-900/60 space-y-2 text-xs">
+                  <div className="flex justify-between text-stone-600 dark:text-stone-300">
                     <span>Base Monthly Installment:</span>
-                    <span className="font-semibold text-stone-900">₹25,000</span>
+                    <span className="font-semibold text-stone-900 dark:text-white">₹25,000</span>
                   </div>
-                  <div className="flex justify-between text-emerald-700 font-semibold">
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-semibold">
                     <span>Auction Dividend Credited:</span>
                     <span>- ₹4,875</span>
                   </div>
-                  <div className="pt-2 border-t border-stone-200 flex justify-between items-center">
-                    <span className="font-bold text-[#360D1B]">Net Amount Payable:</span>
-                    <span className="text-base font-black text-[#7A1F3D]">₹20,125</span>
+                  <div className="pt-2 border-t border-stone-200 dark:border-maroon-900/50 flex justify-between items-center">
+                    <span className="font-bold text-[#360D1B] dark:text-stone-200">Net Amount Payable:</span>
+                    <span className="text-base font-black text-[#7A1F3D] dark:text-gold-400">₹20,125</span>
                   </div>
                 </div>
 
                 {/* Razorpay Badge */}
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-between text-[11px] text-emerald-900">
+                <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-between text-[11px] text-emerald-900 dark:text-emerald-300">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     <span>Razorpay Webhook Verified</span>
                   </div>
                   <span className="font-mono text-[10px] font-bold">UTR: CMS998231</span>
@@ -453,25 +474,25 @@ export const LandingPage = () => {
 
             {/* Right: Content */}
             <div className="lg:col-span-6 space-y-6 order-1 lg:order-2">
-              <h2 className="text-3xl sm:text-5xl lg:text-[48px] font-black text-[#360D1B] tracking-tight leading-[1.12]">
+              <h2 className="text-3xl sm:text-5xl lg:text-[48px] font-black text-[#360D1B] dark:text-white tracking-tight leading-[1.12]">
                 Simplify your wallet, manage your tickets effortlessly.
               </h2>
 
-              <p className="text-base text-stone-600 leading-relaxed font-normal">
+              <p className="text-base text-stone-600 dark:text-stone-300 leading-relaxed font-normal">
                 Naveen Chit Fund allows you to manage all of your enrolled chit tickets in one transparent place. Track auction schedules, view real-time dividend offsets credited directly against your upcoming installments, and complete payments via Razorpay UPI or NetBanking.
               </p>
 
-              <div className="space-y-3 pt-2 text-xs font-semibold text-stone-700">
+              <div className="space-y-3 pt-2 text-xs font-semibold text-stone-700 dark:text-stone-300">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">✓</div>
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">✓</div>
                   <span>Instant dividend offsets credited before next month's due date</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">✓</div>
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">✓</div>
                   <span>Zero floating-point rounding drift with integer-paise financial precision</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">✓</div>
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">✓</div>
                   <span>Automated PDF payment receipts and Form XIV registrar audit minutes</span>
                 </div>
               </div>
@@ -482,7 +503,7 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 6. BOTTOM CLIMAX SHOWCASE: "Keeping Finance In One App"    */}
         {/* ========================================================= */}
-        <section id="app-showcase" className="px-6 sm:px-10 lg:px-16 pt-20 pb-28 bg-[#1F0E17] text-white relative overflow-hidden">
+        <section id="app-showcase" className="px-6 sm:px-10 lg:px-16 pt-20 pb-28 bg-[#1F0E17] dark:bg-[#12070D] text-white relative overflow-hidden transition-colors">
           {/* Subtle Ambient Glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-64 bg-radial from-maroon-700/20 to-transparent pointer-events-none"></div>
 
@@ -525,34 +546,34 @@ export const LandingPage = () => {
 
             {/* Screen 2: Explore Chits / Home */}
             <div className="rounded-[36px] bg-[#160C10] p-2.5 shadow-2xl border-[4px] border-stone-800">
-              <div className="rounded-[28px] bg-[#FFFDF9] p-3 text-slate-900 text-left h-[420px] flex flex-col justify-between overflow-hidden">
+              <div className="rounded-[28px] bg-[#FFFDF9] dark:bg-[#1C0E16] p-3 text-slate-900 dark:text-slate-100 text-left h-[420px] flex flex-col justify-between overflow-hidden">
                 <div className="w-12 h-3 bg-black rounded-full mx-auto -mt-1 mb-2"></div>
                 
                 {/* Header */}
-                <div className="border-b border-stone-100 pb-2">
+                <div className="border-b border-stone-100 dark:border-maroon-900/50 pb-2">
                   <div className="text-[9px] text-stone-400">Total Chit Pool</div>
-                  <div className="text-base font-black text-[#4E1327]">₹4,75,250</div>
+                  <div className="text-base font-black text-[#4E1327] dark:text-gold-400">₹4,75,250</div>
                 </div>
 
                 {/* Card */}
-                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1.5">
-                  <span className="text-[9px] font-bold text-[#7A1F3D]">Smart Wealth (Gold-20)</span>
-                  <div className="text-xs font-black text-stone-900">₹5,00,000</div>
-                  <div className="text-[8px] text-stone-500">₹25,000 / month • 20 Mo</div>
-                  <div className="w-full bg-stone-200 h-1 rounded-full overflow-hidden">
-                    <div className="bg-[#7A1F3D] h-full w-[95%]"></div>
+                <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-[#25121D] border border-stone-200 dark:border-maroon-800 space-y-1.5">
+                  <span className="text-[9px] font-bold text-[#7A1F3D] dark:text-gold-400">Smart Wealth (Gold-20)</span>
+                  <div className="text-xs font-black text-stone-900 dark:text-white">₹5,00,000</div>
+                  <div className="text-[8px] text-stone-500 dark:text-stone-400">₹25,000 / month • 20 Mo</div>
+                  <div className="w-full bg-stone-200 dark:bg-navy-950 h-1 rounded-full overflow-hidden">
+                    <div className="bg-[#7A1F3D] dark:bg-gold-500 h-full w-[95%]"></div>
                   </div>
-                  <div className="text-[8px] text-emerald-700 font-bold">19/20 Slots Enrolled</div>
+                  <div className="text-[8px] text-emerald-700 dark:text-emerald-400 font-bold">19/20 Slots Enrolled</div>
                 </div>
 
                 {/* Card 2 */}
-                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1.5">
-                  <span className="text-[9px] font-bold text-[#7A1F3D]">Silver Saver (S-25)</span>
-                  <div className="text-xs font-black text-stone-900">₹2,50,000</div>
-                  <div className="text-[8px] text-stone-500">₹10,000 / month • 25 Mo</div>
+                <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-[#25121D] border border-stone-200 dark:border-maroon-800 space-y-1.5">
+                  <span className="text-[9px] font-bold text-[#7A1F3D] dark:text-gold-400">Silver Saver (S-25)</span>
+                  <div className="text-xs font-black text-stone-900 dark:text-white">₹2,50,000</div>
+                  <div className="text-[8px] text-stone-500 dark:text-stone-400">₹10,000 / month • 25 Mo</div>
                 </div>
 
-                <div className="py-1.5 rounded-xl bg-[#4E1327] text-white text-center font-bold text-[9px]">
+                <div className="py-1.5 rounded-xl bg-[#4E1327] dark:bg-gold-500 text-white dark:text-navy-950 text-center font-bold text-[9px]">
                   Join Chit Pool
                 </div>
               </div>
@@ -598,38 +619,38 @@ export const LandingPage = () => {
 
             {/* Screen 4: Installment & Payments */}
             <div className="rounded-[36px] bg-[#160C10] p-2.5 shadow-2xl border-[4px] border-stone-800">
-              <div className="rounded-[28px] bg-[#FFFDF9] p-3 text-slate-900 text-left h-[420px] flex flex-col justify-between">
+              <div className="rounded-[28px] bg-[#FFFDF9] dark:bg-[#1C0E16] p-3 text-slate-900 dark:text-slate-100 text-left h-[420px] flex flex-col justify-between">
                 <div className="w-12 h-3 bg-black rounded-full mx-auto -mt-1 mb-2"></div>
                 
-                <div className="border-b border-stone-100 pb-2">
+                <div className="border-b border-stone-100 dark:border-maroon-900/50 pb-2">
                   <div className="text-[9px] text-stone-400">Installment Dues</div>
-                  <div className="text-xs font-bold text-[#4E1327]">Month #04 Schedule</div>
+                  <div className="text-xs font-bold text-[#4E1327] dark:text-gold-400">Month #04 Schedule</div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 text-[9px] space-y-1">
+                <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-[#25121D] border border-stone-200 dark:border-maroon-800 text-[9px] space-y-1">
                   <div className="flex justify-between">
                     <span>Base Installment:</span>
                     <span>₹25,000</span>
                   </div>
-                  <div className="flex justify-between text-emerald-700 font-bold">
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
                     <span>Dividend Offset:</span>
                     <span>- ₹4,875</span>
                   </div>
-                  <div className="pt-1 border-t border-stone-200 flex justify-between font-black text-[#4E1327] text-[10px]">
+                  <div className="pt-1 border-t border-stone-200 dark:border-maroon-900/50 flex justify-between font-black text-[#4E1327] dark:text-gold-400 text-[10px]">
                     <span>Net Due:</span>
                     <span>₹20,125</span>
                   </div>
                 </div>
 
-                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[8px] text-emerald-900 space-y-0.5">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[8px] text-emerald-900 dark:text-emerald-300 space-y-0.5">
                   <div className="font-bold flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3 text-emerald-600" />
+                    <CheckCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                     <span>Paid via Razorpay</span>
                   </div>
                   <div>Receipt: REC-2026-092</div>
                 </div>
 
-                <div className="py-1.5 rounded-xl bg-[#7A1F3D] text-white text-center font-bold text-[9px]">
+                <div className="py-1.5 rounded-xl bg-[#7A1F3D] dark:bg-gold-500 text-white dark:text-navy-950 text-center font-bold text-[9px]">
                   Download Receipt (PDF)
                 </div>
               </div>
@@ -638,32 +659,32 @@ export const LandingPage = () => {
 
             {/* Screen 5: Prized Winner & Surety Verification */}
             <div className="rounded-[36px] bg-[#160C10] p-2.5 shadow-2xl border-[4px] border-stone-800">
-              <div className="rounded-[28px] bg-[#FFFDF9] p-3 text-slate-900 text-left h-[420px] flex flex-col justify-between">
+              <div className="rounded-[28px] bg-[#FFFDF9] dark:bg-[#1C0E16] p-3 text-slate-900 dark:text-slate-100 text-left h-[420px] flex flex-col justify-between">
                 <div className="w-12 h-3 bg-black rounded-full mx-auto -mt-1 mb-2"></div>
                 
-                <div className="border-b border-stone-100 pb-2">
-                  <div className="text-[9px] text-gold-600 font-bold uppercase">Prize Disbursal</div>
-                  <div className="text-xs font-bold text-stone-900">Surety Package Review</div>
+                <div className="border-b border-stone-100 dark:border-maroon-900/50 pb-2">
+                  <div className="text-[9px] text-gold-600 dark:text-gold-400 font-bold uppercase">Prize Disbursal</div>
+                  <div className="text-xs font-bold text-stone-900 dark:text-white">Surety Package Review</div>
                 </div>
 
-                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                  <div className="text-[9px] text-stone-500">Prize Winner (SB)</div>
-                  <div className="text-sm font-black text-emerald-700">₹3,75,000</div>
-                  <div className="text-[8px] text-emerald-800">Winning Bid: 24.5%</div>
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center">
+                  <div className="text-[9px] text-stone-500 dark:text-stone-400">Prize Winner (SB)</div>
+                  <div className="text-sm font-black text-emerald-700 dark:text-emerald-300">₹3,75,000</div>
+                  <div className="text-[8px] text-emerald-800 dark:text-emerald-400">Winning Bid: 24.5%</div>
                 </div>
 
-                <div className="space-y-1 text-[8px] text-stone-600">
-                  <div className="p-1 rounded bg-stone-100 flex justify-between">
+                <div className="space-y-1 text-[8px] text-stone-600 dark:text-stone-300">
+                  <div className="p-1 rounded bg-stone-100 dark:bg-navy-950 flex justify-between">
                     <span>Guarantor 1: A. Kumar</span>
-                    <span className="text-emerald-700 font-bold">CIBIL 780 ✓</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">CIBIL 780 ✓</span>
                   </div>
-                  <div className="p-1 rounded bg-stone-100 flex justify-between">
+                  <div className="p-1 rounded bg-stone-100 dark:bg-navy-950 flex justify-between">
                     <span>Guarantor 2: R. Verma</span>
-                    <span className="text-emerald-700 font-bold">Verified ✓</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">Verified ✓</span>
                   </div>
                 </div>
 
-                <div className="py-1.5 rounded-xl bg-emerald-700 text-white text-center font-bold text-[9px]">
+                <div className="py-1.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-center font-bold text-[9px]">
                   RTGS UTR Generated
                 </div>
               </div>
@@ -676,27 +697,27 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 7. INTERACTIVE CHIT CALCULATOR                            */}
         {/* ========================================================= */}
-        <section id="calculator" className="px-6 sm:px-12 lg:px-20 py-20 bg-white border-t border-stone-200/80">
+        <section id="calculator" className="px-6 sm:px-12 lg:px-20 py-20 bg-white dark:bg-[#150A10] border-t border-stone-200/80 dark:border-maroon-900/60 transition-colors">
           <div className="max-w-4xl mx-auto space-y-10">
             <div className="text-center space-y-2">
-              <span className="text-xs font-bold text-[#7A1F3D] uppercase tracking-wider">
+              <span className="text-xs font-bold text-[#7A1F3D] dark:text-gold-400 uppercase tracking-wider">
                 Financial Transparency
               </span>
-              <h2 className="text-3xl sm:text-4xl font-black text-[#360D1B]">
+              <h2 className="text-3xl sm:text-4xl font-black text-[#360D1B] dark:text-white">
                 Interactive Chit Yield & Dividend Calculator
               </h2>
-              <p className="text-xs sm:text-sm text-stone-500 max-w-xl mx-auto">
+              <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 max-w-xl mx-auto">
                 Calculate your exact monthly installments, distributable dividends, and net prize payouts based on statutory regulations.
               </p>
             </div>
 
-            <div className="p-6 sm:p-8 rounded-[28px] bg-stone-50 border border-stone-200/90 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div className="p-6 sm:p-8 rounded-[28px] bg-stone-50 dark:bg-[#22101A] border border-stone-200/90 dark:border-maroon-800/80 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8 items-center transition-colors">
               {/* Sliders */}
-              <div className="space-y-6 text-xs font-bold text-stone-700">
+              <div className="space-y-6 text-xs font-bold text-stone-700 dark:text-stone-300">
                 <div>
                   <div className="flex justify-between mb-1.5">
                     <span>Gross Chit Pool Value</span>
-                    <span className="text-sm font-extrabold text-[#7A1F3D]">
+                    <span className="text-sm font-extrabold text-[#7A1F3D] dark:text-gold-400">
                       ₹{calcChitAmount.toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -718,7 +739,7 @@ export const LandingPage = () => {
                 <div>
                   <div className="flex justify-between mb-1.5">
                     <span>Tenure & Subscribers</span>
-                    <span className="text-sm font-extrabold text-[#7A1F3D]">
+                    <span className="text-sm font-extrabold text-[#7A1F3D] dark:text-gold-400">
                       {calcTenure} Months / Members
                     </span>
                   </div>
@@ -727,10 +748,10 @@ export const LandingPage = () => {
                       <button
                         key={t}
                         onClick={() => setCalcTenure(t)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                           calcTenure === t
-                            ? 'bg-[#7A1F3D] text-white shadow-xs'
-                            : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-100'
+                            ? 'bg-[#7A1F3D] dark:bg-gold-500 text-white dark:text-navy-950 shadow-xs'
+                            : 'bg-white dark:bg-[#190C13] border border-stone-200 dark:border-maroon-800 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#25121D]'
                         }`}
                       >
                         {t}M
@@ -742,7 +763,7 @@ export const LandingPage = () => {
                 <div>
                   <div className="flex justify-between mb-1.5">
                     <span>Winning Bid Discount Percentage</span>
-                    <span className="text-sm font-extrabold text-[#C9A227]">
+                    <span className="text-sm font-extrabold text-[#C9A227] dark:text-gold-400">
                       {calcDiscountPct}% (Floor: 5%, Cap: 40%)
                     </span>
                   </div>
@@ -759,28 +780,28 @@ export const LandingPage = () => {
               </div>
 
               {/* Real-time Math Output Card */}
-              <div className="p-6 rounded-2xl bg-white border border-stone-200/90 shadow-md space-y-4">
-                <div className="border-b border-stone-100 pb-3">
+              <div className="p-6 rounded-2xl bg-white dark:bg-[#190C13] border border-stone-200/90 dark:border-maroon-800/80 shadow-md space-y-4 transition-colors">
+                <div className="border-b border-stone-100 dark:border-maroon-900/60 pb-3">
                   <span className="text-[10px] text-stone-400 uppercase font-semibold">Net Prize Money (Winner Takes Home)</span>
-                  <div className="text-2xl sm:text-3xl font-black text-emerald-700">
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-400">
                     ₹{netPrizeMoney.toLocaleString('en-IN')}
                   </div>
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between text-stone-600">
+                  <div className="flex justify-between text-stone-600 dark:text-stone-300">
                     <span>Base Monthly Contribution:</span>
-                    <span className="font-bold text-stone-900">₹{monthlyInstallment.toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-stone-900 dark:text-white">₹{monthlyInstallment.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between text-stone-600">
+                  <div className="flex justify-between text-stone-600 dark:text-stone-300">
                     <span>Foreman Commission (5%):</span>
-                    <span className="font-bold text-stone-900">₹{foremanCommission.toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-stone-900 dark:text-white">₹{foremanCommission.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between text-emerald-700 font-bold">
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
                     <span>Distributable Dividend per Member:</span>
                     <span>- ₹{dividendPerMember.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="pt-2 border-t border-stone-100 flex justify-between text-sm font-black text-[#4E1327]">
+                  <div className="pt-2 border-t border-stone-100 dark:border-maroon-900/60 flex justify-between text-sm font-black text-[#4E1327] dark:text-gold-400">
                     <span>Net Installment Payable:</span>
                     <span>₹{netInstallmentDue.toLocaleString('en-IN')}</span>
                   </div>
@@ -793,13 +814,13 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 8. FAQ ACCORDION                                          */}
         {/* ========================================================= */}
-        <section id="faqs" className="px-6 sm:px-12 lg:px-20 py-20 bg-[#FAF8F5] border-t border-stone-200/80">
+        <section id="faqs" className="px-6 sm:px-12 lg:px-20 py-20 bg-[#FAF8F5] dark:bg-[#190C13] border-t border-stone-200/80 dark:border-maroon-900/60 transition-colors">
           <div className="max-w-3xl mx-auto space-y-8">
             <div className="text-center space-y-2">
-              <span className="text-xs font-bold text-[#7A1F3D] uppercase tracking-wider">
+              <span className="text-xs font-bold text-[#7A1F3D] dark:text-gold-400 uppercase tracking-wider">
                 Frequently Asked Questions
               </span>
-              <h2 className="text-3xl sm:text-4xl font-black text-[#360D1B]">
+              <h2 className="text-3xl sm:text-4xl font-black text-[#360D1B] dark:text-white">
                 Everything You Need To Know
               </h2>
             </div>
@@ -808,11 +829,11 @@ export const LandingPage = () => {
               {faqs.map((faq, idx) => (
                 <div
                   key={idx}
-                  className="rounded-2xl bg-white border border-stone-200/80 shadow-xs overflow-hidden transition"
+                  className="rounded-2xl bg-white dark:bg-[#22101A] border border-stone-200/80 dark:border-maroon-800/80 shadow-xs overflow-hidden transition"
                 >
                   <button
                     onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full flex items-center justify-between p-5 text-left text-sm font-bold text-stone-900 hover:text-[#7A1F3D] transition"
+                    className="w-full flex items-center justify-between p-5 text-left text-sm font-bold text-stone-900 dark:text-stone-100 hover:text-[#7A1F3D] dark:hover:text-gold-300 transition cursor-pointer"
                   >
                     <span>{faq.q}</span>
                     <ChevronDown
@@ -822,7 +843,7 @@ export const LandingPage = () => {
                     />
                   </button>
                   {openFaq === idx && (
-                    <div className="p-5 pt-0 text-xs sm:text-sm text-stone-600 border-t border-stone-100 leading-relaxed font-normal">
+                    <div className="p-5 pt-0 text-xs sm:text-sm text-stone-600 dark:text-stone-300 border-t border-stone-100 dark:border-maroon-900/60 leading-relaxed font-normal">
                       {faq.a}
                     </div>
                   )}
@@ -835,17 +856,17 @@ export const LandingPage = () => {
         {/* ========================================================= */}
         {/* 9. STATUTORY FOOTER                                       */}
         {/* ========================================================= */}
-        <footer className="mt-auto border-t border-stone-200/80 bg-white py-12 px-6 sm:px-12 lg:px-16 text-xs text-stone-500">
+        <footer className="mt-auto border-t border-stone-200/80 dark:border-maroon-900/60 bg-white dark:bg-[#12070D] py-12 px-6 sm:px-12 lg:px-16 text-xs text-stone-500 dark:text-stone-400 transition-colors">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="Naveen Chit Logo" className="w-8 h-8 rounded-lg object-contain shadow-xs" />
               <div>
-                <span className="font-extrabold text-[#4E1327] block text-sm">Naveen Chit Fund Private Limited</span>
+                <span className="font-extrabold text-[#4E1327] dark:text-gold-400 block text-sm">Naveen Chit Fund Private Limited</span>
                 <span className="text-[10px] text-stone-400">Govt. Regulated Digital ROSCA Platform</span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-6 text-stone-500 text-[11px]">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-stone-500 dark:text-stone-400 text-[11px]">
               <span>CIN: U65992TS2024PTC180123</span>
               <span>GSTIN: 36AAACC1206K1ZF</span>
               <span>ROC Hyderabad (Telangana)</span>
@@ -855,14 +876,14 @@ export const LandingPage = () => {
             <div className="flex items-center gap-4">
               <Link
                 to="/chit"
-                className="text-xs font-bold text-[#7A1F3D] hover:underline"
+                className="text-xs font-bold text-[#7A1F3D] dark:text-gold-400 hover:underline"
               >
                 Superadmin Portal &rarr;
               </Link>
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto mt-6 pt-6 border-t border-stone-100 text-center text-stone-400 text-[10px]">
+          <div className="max-w-7xl mx-auto mt-6 pt-6 border-t border-stone-100 dark:border-maroon-900/60 text-center text-stone-400 text-[10px]">
             &copy; {new Date().getFullYear()} Naveen Chit Fund Private Limited. All statutory rights reserved. Operated strictly under Central and State Chit Fund Rules.
           </div>
         </footer>
