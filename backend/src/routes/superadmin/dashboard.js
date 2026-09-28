@@ -72,20 +72,50 @@ router.get(
     );
     const overdueCount = overdueRes.rows[0]?.count || 0;
 
-    // 12-Month Collections vs Dues trend (mock-grounded projection based on groups & installments)
+    // 12-Month Collections vs Dues dynamic trend aggregated directly from DB
+    const [trendPaymentsRes, trendInstallmentsRes] = await Promise.all([
+      query(
+        `SELECT 
+           DATE_TRUNC('month', created_at) AS m_date,
+           COALESCE(SUM(amount), 0)::bigint AS collected
+         FROM payments
+         WHERE status = 'SUCCESS' AND created_at >= NOW() - INTERVAL '12 months'
+         GROUP BY m_date`
+      ),
+      query(
+        `SELECT 
+           DATE_TRUNC('month', due_date) AS m_date,
+           COALESCE(SUM(amount_due), 0)::bigint AS dues
+         FROM installments
+         WHERE due_date >= NOW() - INTERVAL '12 months'
+         GROUP BY m_date`
+      ),
+    ]);
+
+    const collectedMap = {};
+    trendPaymentsRes.rows.forEach((r) => {
+      const key = new Date(r.m_date).toISOString().slice(0, 7);
+      collectedMap[key] = Number(r.collected || 0);
+    });
+
+    const duesMap = {};
+    trendInstallmentsRes.rows.forEach((r) => {
+      const key = new Date(r.m_date).toISOString().slice(0, 7);
+      duesMap[key] = Number(r.dues || 0);
+    });
+
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonthIdx = new Date().getMonth();
     const monthlyTrend = [];
+    const now = new Date();
 
     for (let i = 11; i >= 0; i--) {
-      const idx = (currentMonthIdx - i + 12) % 12;
-      const mName = months[idx];
-      const baseDues = Math.round((totalAum / 20) * 0.95);
-      const collectionFactor = 0.88 + (idx % 4) * 0.03;
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toISOString().slice(0, 7);
+      const mName = months[d.getMonth()];
       monthlyTrend.push({
         month: mName,
-        dues: baseDues,
-        collections: Math.round(baseDues * collectionFactor),
+        dues: duesMap[key] || 0,
+        collections: collectedMap[key] || 0,
       });
     }
 

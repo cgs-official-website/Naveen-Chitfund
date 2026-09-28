@@ -63,7 +63,7 @@ router.get(
 
     const items = rows.map((r) => {
       const grossPaise = toPaise(Number(r.chit_amount || 0));
-      const winPct = Number(r.winning_bid_pct || 22.5);
+      const winPct = Number(r.winning_bid_pct || 0);
       const discountPaise = Math.round((grossPaise * winPct) / 100);
       const netPayoutPaise = grossPaise - discountPaise;
       return {
@@ -133,7 +133,7 @@ router.get(
     const dRes = await query(`SELECT * FROM disbursals WHERE surety_id = $1 LIMIT 1`, [id]);
 
     const grossPaise = toPaise(Number(s.chit_amount || 0));
-    const winPct = Number(s.winning_bid_pct || 22.5);
+    const winPct = Number(s.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const netPayoutPaise = grossPaise - discountPaise;
 
@@ -179,7 +179,7 @@ router.post(
 
     // Initialize Disbursal record in PENDING state
     const grossPaise = toPaise(Number(item.chit_amount || 0));
-    const winPct = Number(item.winning_bid_pct || 22.5);
+    const winPct = Number(item.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const commissionPaise = Math.round((grossPaise * Number(item.foreman_commission_pct || 5)) / 100);
     const netPayoutPaise = grossPaise - discountPaise;
@@ -242,7 +242,7 @@ router.post(
     const s = suretyRes.rows[0];
 
     const grossPaise = toPaise(Number(s.chit_amount));
-    const winPct = Number(s.winning_bid_pct || 22.5);
+    const winPct = Number(s.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const commissionPaise = Math.round((grossPaise * Number(s.foreman_commission_pct || 5)) / 100);
     const netPayoutPaise = grossPaise - discountPaise;

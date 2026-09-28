@@ -12,8 +12,8 @@ export const SuretiesPage = () => {
     const [approveTarget, setApproveTarget] = useState(null);
     const [disburseTarget, setDisburseTarget] = useState(null);
     // Bank form for disbursal
-    const [accountNo, setAccountNo] = useState('50100492817291');
-    const [ifsc, setIfsc] = useState('HDFC0000060');
+    const [accountNo, setAccountNo] = useState('');
+    const [ifsc, setIfsc] = useState('');
     const [beneficiary, setBeneficiary] = useState('');
     const [disburseError, setDisburseError] = useState('');
     const { data, isLoading } = useQuery({
@@ -95,7 +95,9 @@ export const SuretiesPage = () => {
             Approve
           </button>)}
         {item.status === 'APPROVED' && (<button onClick={() => {
-                setBeneficiary(item.subscriber_name);
+                setBeneficiary(item.subscriber_name || '');
+                setAccountNo(item.bank_account_number || '');
+                setIfsc(item.bank_ifsc || '');
                 setDisburseTarget(item);
             }} className="px-2.5 py-1 text-xs font-bold rounded-input bg-gold-500 hover:bg-gold-400 text-navy-950">
             Execute RTGS Disbursal
@@ -192,11 +194,11 @@ export const SuretiesPage = () => {
                     </div>
                     <div>
                       <span className="text-slate-400 block font-semibold text-[10px]">CIBIL SCORE</span>
-                      <span className="font-bold text-emerald-500">{g.cibil_score || '780 (Excellent)'}</span>
+                      <span className="font-bold text-emerald-500">{g.cibil_score ? `${g.cibil_score}` : 'Pending Check'}</span>
                     </div>
                     <div>
                       <span className="text-slate-400 block font-semibold text-[10px]">PAN NUMBER</span>
-                      <span className="font-mono">{g.pan_number || 'ABCDE9999Z'}</span>
+                      <span className="font-mono">{g.pan_number || 'Not Submitted'}</span>
                     </div>
                   </div>))}
               </div>
@@ -207,15 +209,34 @@ export const SuretiesPage = () => {
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-2">
                 Supporting Security Documents
               </h4>
-              <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card flex items-center gap-3 text-xs">
-                <FileText className="w-5 h-5 text-gold-500"/>
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                    Salary Slips & Bank Fixed Deposit Lien Certificate
-                  </span>
-                  <span className="text-slate-400">Verified via Cloudinary Secure Storage • Form XIV Attached</span>
+              {detailData?.documents && detailData.documents.length > 0 ? (
+                <div className="space-y-2">
+                  {detailData.documents.map((doc) => (
+                    <div key={doc.id} className="p-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-4 h-4 text-gold-500"/>
+                        <div>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                            {doc.document_type ? doc.document_type.replace(/_/g, ' ') : 'Security Document'}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[11px]">
+                            {doc.document_number ? `Ref: ${doc.document_number}` : 'Attached Verification Artifact'}
+                          </span>
+                        </div>
+                      </div>
+                      {doc.document_url && (
+                        <a href={doc.document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-gold-500 hover:underline">
+                          View &rarr;
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-card text-xs text-slate-500">
+                  No uploaded document attachments on file for this surety package.
+                </div>
+              )}
             </div>
           </div>)}
       </Modal>

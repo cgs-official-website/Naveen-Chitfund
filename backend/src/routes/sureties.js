@@ -52,7 +52,7 @@ router.get(
 
     const sub = subRes.rows[0];
     const grossPaise = toPaise(Number(sub.chit_amount));
-    const winPct = Number(sub.winning_bid_pct || 22.5);
+    const winPct = Number(sub.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const commissionPaise = Math.round((grossPaise * Number(sub.foreman_commission_pct || 5)) / 100);
     const netPayoutPaise = grossPaise - discountPaise;
@@ -202,7 +202,7 @@ router.post(
 
     // Initialize or update disbursal in PENDING status
     const grossPaise = toPaise(Number(item.chit_amount));
-    const winPct = Number(item.winning_bid_pct || 22.5);
+    const winPct = Number(item.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const commissionPaise = Math.round((grossPaise * Number(item.foreman_commission_pct || 5)) / 100);
     const netPayoutPaise = grossPaise - discountPaise;
@@ -277,7 +277,7 @@ router.post(
     }
 
     const grossPaise = toPaise(Number(item.chit_amount));
-    const winPct = Number(item.winning_bid_pct || 22.5);
+    const winPct = Number(item.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const commissionPaise = Math.round((grossPaise * Number(item.foreman_commission_pct || 5)) / 100);
     const netPayoutPaise = grossPaise - discountPaise;

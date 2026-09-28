@@ -82,29 +82,51 @@ export const KycQueuePage = () => {
                   <div className="p-3 bg-slate-50 dark:bg-navy-950 rounded-lg">
                     <span className="text-slate-400 block font-semibold mb-1">Declared PAN Number</span>
                     <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">
-                      {activeUser.pan_number || 'ABCDE1234F'}
+                      {activeUser.pan_number || 'Not Submitted'}
                     </span>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-navy-950 rounded-lg">
-                    <span className="text-slate-400 block font-semibold mb-1">Aadhaar Vault Token</span>
+                    <span className="text-slate-400 block font-semibold mb-1">Aadhaar Identity Ref</span>
                     <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">
-                      AVR-9988-TS-4411
+                      {activeUser.aadhaar_number
+                        ? `XXXX-XXXX-${String(activeUser.aadhaar_number).slice(-4)}`
+                        : (activeUser.id ? `UID-${activeUser.id.substring(0, 8).toUpperCase()}` : 'Pending Submission')}
                     </span>
                   </div>
                 </div>
 
-                {/* Mock DigiLocker / Aadhaar Document Viewer */}
-                <div className="p-6 rounded-card border-2 border-dashed border-slate-200 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-950/40 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-gold-500/20 text-gold-500 flex items-center justify-center mx-auto">
-                    <FileText className="w-6 h-6"/>
+                {/* Member Verification Details */}
+                <div className="p-5 rounded-card border border-slate-200 dark:border-navy-700 bg-slate-50/50 dark:bg-navy-950/40 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-gold-500/20 text-gold-500 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5"/>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        {activeUser.pan_number ? 'PAN Document Recorded' : 'Profile Awaiting Full Identity Artifacts'}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Enrolled on {new Date(activeUser.created_at).toLocaleDateString()} • Role: {activeUser.role || 'Subscriber'}
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                    DigiLocker XML Signature Verified
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Aadhaar e-KYC payload validated against UIDAI central registry with OTP timestamp verification.
-                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-200/60 dark:border-navy-800">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">System UUID</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300 text-[11px] truncate block">
+                        {activeUser.id}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Current Review Status</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {activeUser.kyc_status}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-navy-800">
