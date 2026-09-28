@@ -44,7 +44,7 @@ export const AuctionsPage = () => {
     useEffect(() => {
         if (!selectedAuctionId)
             return;
-        const socketUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const socketUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://naveen-chitfund-production.up.railway.app' : window.location.origin);
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
         });

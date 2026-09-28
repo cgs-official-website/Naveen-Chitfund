@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
-const baseURL = import.meta.env.VITE_API_URL || '';
+const baseURL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://naveen-chitfund-production.up.railway.app' : '');
 export const api = axios.create({
     baseURL,
     headers: {
