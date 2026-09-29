@@ -104,6 +104,34 @@ export interface BidItem {
   is_self?: boolean;
 }
 
+export interface AuctionTicket {
+  id: string;
+  auction_id: string;
+  subscription_id: string;
+  user_id: string;
+  ticket_code: string;
+  status: 'ISSUED' | 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+  issued_at: string;
+  ticket_number?: number;
+  group_name?: string;
+}
+
+export interface UserAuctionHistoryItem {
+  ticket_id: string;
+  ticket_code: string;
+  ticket_status: string;
+  issued_at: string;
+  auction_id: string;
+  month_number: number;
+  auction_status: string;
+  winning_bid_pct: number | null;
+  closed_at: string | null;
+  group_name: string;
+  chit_amount: number;
+  ticket_number: number;
+  is_winner: boolean;
+}
+
 export interface Auction {
   id: string;
   chit_group_id: string;
@@ -227,6 +255,10 @@ interface AppState {
   paymentHistory: PaymentRecord[];
   paymentHistoryLoading: boolean;
   currentAuction: Auction | null;
+  activeTicket: AuctionTicket | null;
+  activeTicketLoading: boolean;
+  userAuctionHistory: UserAuctionHistoryItem[];
+  userAuctionHistoryLoading: boolean;
   activePrizeClaim: PrizeClaim | null;
   prizeClaimLoading: boolean;
   suretyDocuments: GuarantorDocument[];
@@ -255,6 +287,9 @@ interface AppState {
   // Actions
   login: (user: User, token: string) => void;
   logout: () => void;
+  claimAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
+  fetchMyAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
+  fetchUserAuctionHistory: () => Promise<{ success: boolean; data?: UserAuctionHistoryItem[]; error?: string }>;
   switchRole: (role: UserRole) => void;
   updateKycStatus: (status: 'PENDING' | 'VERIFIED') => void;
   updateDPDPConsent: (key: keyof DPDPConsents, value: boolean) => void;
@@ -351,6 +386,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   availableGroupsLoading: false,
   activeChitsLoading: false,
   currentAuction: null,
+  activeTicket: null,
+  activeTicketLoading: false,
+  userAuctionHistory: [],
+  userAuctionHistoryLoading: false,
   activePrizeClaim: null,
   prizeClaimLoading: false,
   suretyDocuments: [],
@@ -568,29 +607,70 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { success: false, error: err.message || 'Failed to join chit group' };
     }
   },
+
+  claimAuctionTicket: async (auctionId: string) => {
+    set({ activeTicketLoading: true });
+    try {
+      const res = await apiClient.post(`/auctions/${auctionId}/tickets/claim`);
+      const ticket: AuctionTicket = res.data?.data;
+      set({ activeTicket: ticket, activeTicketLoading: false });
+      return { success: true, data: ticket };
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to claim auction ticket';
+      set({ activeTicketLoading: false });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  fetchMyAuctionTicket: async (auctionId: string) => {
+    try {
+      const res = await apiClient.get(`/auctions/${auctionId}/my-ticket`);
+      const ticket: AuctionTicket | null = res.data?.data || null;
+      set({ activeTicket: ticket });
+      return { success: true, data: ticket || undefined };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  fetchUserAuctionHistory: async () => {
+    set({ userAuctionHistoryLoading: true });
+    try {
+      const res = await apiClient.get('/auctions/history/mine');
+      const items: UserAuctionHistoryItem[] = res.data?.data?.items || res.data?.data || [];
+      set({ userAuctionHistory: items, userAuctionHistoryLoading: false });
+      return { success: true, data: items };
+    } catch (err: any) {
+      set({ userAuctionHistoryLoading: false });
+      return { success: false, error: err.message || 'Failed to fetch auction history' };
+    }
+  },
+
   submitBid: async (bidPct: number) => {
     const state = get();
     if (!state.currentAuction) return { success: false, error: 'No live auction in progress' };
     const auctionId = state.currentAuction.id;
     const mySub = state.activeChits.find((c) => c.chit_group_id === state.currentAuction?.chit_group_id) || state.activeChits[0];
-    const ticketNum = mySub?.ticket_number || 7;
+    const ticketNum = state.activeTicket?.ticket_number || mySub?.ticket_number || 7;
+    const ticketCode = state.activeTicket?.ticket_code;
 
     try {
-      await apiClient.post(`/auctions/${auctionId}/bid`, { bidPct });
+      await apiClient.post(`/auctions/${auctionId}/bid`, {
+        bidPct,
+        ticketCode: ticketCode || undefined,
+      });
     } catch (err: any) {
-      // If error is 400 with a specific message from backend, return it
       const msg = err.response?.data?.error || err.message || 'Bid rejected';
       if (err.response?.status === 400 || err.response?.status === 403) {
         return { success: false, error: msg };
       }
-      // If network error, allow local simulation fallback
       console.warn('Bid API error, applying local optimistic state:', msg);
     }
 
     const discountAmount = (state.currentAuction.chit_amount * bidPct) / 100;
     const newBid: BidItem = {
       id: `b-${Date.now()}`,
-      bidder_name: `Ticket #${String(ticketNum).padStart(2, '0')} (${state.user?.full_name || 'You'})`,
+      bidder_name: `${ticketCode ? `[${ticketCode}] ` : ''}Ticket #${String(ticketNum).padStart(2, '0')} (${state.user?.full_name || 'You'})`,
       ticket_number: ticketNum,
       bid_pct: bidPct,
       discount_amount: discountAmount,

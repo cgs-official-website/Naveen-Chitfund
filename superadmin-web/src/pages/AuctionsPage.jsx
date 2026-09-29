@@ -19,6 +19,8 @@ export const AuctionsPage = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [selectedAuctionId, setSelectedAuctionId] = useState(null);
     const [forceCloseTarget, setForceCloseTarget] = useState(null);
+    const [modalTab, setModalTab] = useState('bids'); // 'bids' | 'tickets'
+    const [revokeTarget, setRevokeTarget] = useState(null);
     // Live Socket bids stream state
     const [liveBids, setLiveBids] = useState([]);
     const { data, isLoading } = useQuery({
@@ -41,11 +43,33 @@ export const AuctionsPage = () => {
         },
         enabled: Boolean(selectedAuctionId),
     });
+    const { data: ticketsData, refetch: refetchTickets } = useQuery({
+        queryKey: ['superadmin-auction-tickets', selectedAuctionId],
+        queryFn: async () => {
+            if (!selectedAuctionId)
+                return null;
+            const res = await api.get(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets`);
+            return res.data;
+        },
+        enabled: Boolean(selectedAuctionId),
+    });
+    const revokeMutation = useMutation({
+        mutationFn: async ({ ticketId, reason }) => {
+            const res = await api.post(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets/${ticketId}/revoke`, { reason });
+            return res.data;
+        },
+        onSuccess: () => {
+            refetchTickets();
+            setRevokeTarget(null);
+        },
+    });
     // Socket.IO connection for live auction room
     useEffect(() => {
         if (!selectedAuctionId)
             return;
-        const socketUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://naveen-chitfund-production.up.railway.app' : window.location.origin);
+        const socketUrl = import.meta.env.DEV
+            ? (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('railway') ? import.meta.env.VITE_API_URL : window.location.origin)
+            : (import.meta.env.VITE_API_URL || 'https://naveen-chitfund-production.up.railway.app');
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
         });
@@ -201,41 +225,161 @@ export const AuctionsPage = () => {
             </div>
           </div>
 
-          {/* Live Feed Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              Live Bids Audit Stream ({liveBids.length})
-            </h4>
-            {activeAuction?.status === 'LIVE' && (<button onClick={() => setForceCloseTarget(activeAuction)} className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs shadow-sm shadow-rose-600/30 flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto">
-                <AlertOctagon className="w-3.5 h-3.5"/> Force Close Auction
-              </button>)}
+          {/* Modal Navigation Tabs */}
+          <div className="flex items-center gap-2 border-b border-stone-200 dark:border-maroon-900/50 pb-2">
+            <button
+              onClick={() => setModalTab('bids')}
+              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                modalTab === 'bids'
+                  ? 'bg-gold-500 text-stone-950 shadow-xs'
+                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
+              }`}
+            >
+              Live Bids ({liveBids.length})
+            </button>
+            <button
+              onClick={() => setModalTab('tickets')}
+              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                modalTab === 'tickets'
+                  ? 'bg-gold-500 text-stone-950 shadow-xs'
+                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
+              }`}
+            >
+              Participation Tickets ({ticketsData?.data?.length || 0})
+            </button>
           </div>
 
-          {/* Live Feed Stream */}
-          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {liveBids.length === 0 ? (<div className="p-8 text-center text-xs text-stone-400 border border-dashed border-stone-200 dark:border-maroon-900/50 rounded-2xl">Waiting for subscriber bids...</div>) : (liveBids.map((b, idx) => (<div key={idx} className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs transition duration-200 ${idx === 0
-                ? 'bg-gradient-to-r from-gold-500/10 via-amber-500/10 to-gold-500/5 border-gold-500/50 ring-1 ring-gold-400/20 shadow-sm'
-                : 'bg-white/80 dark:bg-[#160B12] border-stone-200/70 dark:border-maroon-900/40'}`}>
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4E1327] to-[#7A1F3D] text-gold-300 flex items-center justify-center font-black text-xs shadow-xs border border-gold-400/30">
-                      #{b.ticketNumber}
-                    </span>
-                    <div>
-                      <span className="font-bold text-stone-800 dark:text-stone-200 block">
-                        Subscriber Ticket #{b.ticketNumber}
-                      </span>
-                      <span className="text-[10px] text-stone-400">{new Date(b.bidAt).toLocaleTimeString()}</span>
+          {modalTab === 'bids' ? (
+            <>
+              {/* Live Feed Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  Live Bids Audit Stream ({liveBids.length})
+                </h4>
+                {activeAuction?.status === 'LIVE' && (
+                  <button
+                    onClick={() => setForceCloseTarget(activeAuction)}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs shadow-sm shadow-rose-600/30 flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <AlertOctagon className="w-3.5 h-3.5" /> Force Close Auction
+                  </button>
+                )}
+              </div>
+
+              {/* Live Feed Stream */}
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                {liveBids.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-stone-400 border border-dashed border-stone-200 dark:border-maroon-900/50 rounded-2xl">
+                    Waiting for subscriber bids...
+                  </div>
+                ) : (
+                  liveBids.map((b, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs transition duration-200 ${
+                        idx === 0
+                          ? 'bg-gradient-to-r from-gold-500/10 via-amber-500/10 to-gold-500/5 border-gold-500/50 ring-1 ring-gold-400/20 shadow-sm'
+                          : 'bg-white/80 dark:bg-[#160B12] border-stone-200/70 dark:border-maroon-900/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4E1327] to-[#7A1F3D] text-gold-300 flex items-center justify-center font-black text-xs shadow-xs border border-gold-400/30">
+                          #{b.ticketNumber}
+                        </span>
+                        <div>
+                          <span className="font-bold text-stone-800 dark:text-stone-200 block">
+                            Subscriber Ticket #{b.ticketNumber}
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            {new Date(b.bidAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-base text-gold-600 dark:text-gold-400 block">
+                          {b.bidPct}%
+                        </span>
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          Discount Offered
+                        </span>
+                      </div>
                     </div>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            /* Participation Tickets View */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                  Issued & Active Auction Tickets ({ticketsData?.data?.length || 0})
+                </h4>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {!ticketsData?.data || ticketsData.data.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-stone-400 border border-dashed border-stone-200 dark:border-maroon-900/50 rounded-2xl">
+                    No tickets generated yet for this auction session.
                   </div>
-                  <div className="text-right">
-                    <span className="font-black text-base text-gold-600 dark:text-gold-400 block">{b.bidPct}%</span>
-                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Discount Offered</span>
-                  </div>
-                </div>)))}
-          </div>
+                ) : (
+                  ticketsData.data.map((t) => (
+                    <div
+                      key={t.id}
+                      className="p-3 rounded-xl bg-stone-50 dark:bg-[#1A0B14] border border-stone-200/80 dark:border-maroon-900/40 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-bold text-stone-900 dark:text-stone-100 bg-white dark:bg-[#12070D] px-2.5 py-1 rounded-lg border border-stone-200 dark:border-maroon-800/50">
+                          {t.ticket_code}
+                        </span>
+                        <div>
+                          <span className="font-bold text-stone-800 dark:text-stone-200 block">
+                            {t.full_name || 'Subscriber'} (Slot #{t.ticket_number})
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            Issued: {new Date(t.issued_at).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={t.status} />
+                        {t.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => setRevokeTarget(t)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-lg border border-rose-500/20 transition cursor-pointer"
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
+
+      {/* Revoke Ticket Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(revokeTarget)}
+        onClose={() => setRevokeTarget(null)}
+        title="Revoke Auction Participation Ticket"
+        message={`Are you sure you want to revoke ticket ${revokeTarget?.ticket_code} issued to ${revokeTarget?.full_name}? The subscriber will no longer be permitted to place bids in this auction session.`}
+        confirmText="Revoke Ticket"
+        isDestructive
+        requireReason
+        reasonPlaceholder="e.g. Disqualified due to verified compliance breach or unauthorized proxy..."
+        isLoading={revokeMutation.isPending}
+        onConfirm={(reason) => {
+          if (!revokeTarget) return;
+          revokeMutation.mutate({
+            ticketId: revokeTarget.id,
+            reason,
+          });
+        }}
+      />
 
       {/* Force Close Confirm Dialog with Mandatory Reason */}
       <ConfirmDialog isOpen={Boolean(forceCloseTarget)} onClose={() => setForceCloseTarget(null)} title="Force Close Live Auction" message={`Are you sure you want to forcibly close the auction for ${forceCloseTarget?.group_name}? This will declare the highest current discount bidder as the winner and run the dividend distribution engine immediately.`} confirmText="Force Close Now" isDestructive requireReason reasonPlaceholder="e.g. Unresponsive bidding timer or technical failover resolution..." isLoading={forceCloseMutation.isPending} onConfirm={(reason) => {

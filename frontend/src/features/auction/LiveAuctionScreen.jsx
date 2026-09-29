@@ -34,6 +34,10 @@ import {
   Gavel,
   ShieldCheck,
   Award,
+  History as HistoryIcon,
+  Ticket as TicketIcon,
+  X,
+  Calendar,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -43,14 +47,22 @@ export const LiveAuctionScreen = () => {
   const { isTablet } = useBreakpoint();
   const {
     currentAuction,
+    activeTicket,
+    activeTicketLoading,
+    claimAuctionTicket,
     submitBid,
     applyIncomingBid,
     closeCurrentAuction,
     fetchAuctionState,
     fetchCurrentAuction,
+    userAuctionHistory,
+    userAuctionHistoryLoading,
+    fetchUserAuctionHistory,
   } = useAppStore();
 
+  const [activeTab, setActiveTab] = useState('live'); // 'live' | 'history'
   const [socketStatus, setSocketStatus] = useState('connected');
+  const [ticketError, setTicketError] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(
     currentAuction ? currentAuction.remaining_seconds : 120
   );
@@ -63,6 +75,18 @@ export const LiveAuctionScreen = () => {
   useEffect(() => {
     fetchCurrentAuction();
   }, [fetchCurrentAuction]);
+
+  useEffect(() => {
+    if (currentAuction?.id) {
+      claimAuctionTicket(currentAuction.id).then((res) => {
+        if (!res.success) {
+          setTicketError(res.error);
+        } else {
+          setTicketError(null);
+        }
+      });
+    }
+  }, [currentAuction?.id]);
 
   useEffect(() => {
     if (currentAuction) {
@@ -133,25 +157,55 @@ export const LiveAuctionScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (!currentAuction) {
+  if (!currentAuction && activeTab !== 'history') {
     return (
-      <View style={[styles.container, styles.emptyContainer, { backgroundColor: theme.surface.base }]}>
-        <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
-          <Gavel size={36} color="#D4AF37" />
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.surface.base }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.tabBarContainer, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('live')}
+            style={[styles.tabButton, activeTab === 'live' && { backgroundColor: theme.maroon.primary }]}
+          >
+            <Gavel size={14} color={activeTab === 'live' ? '#FFFFFF' : theme.text.secondary} />
+            <Text style={[typography.caption, { color: activeTab === 'live' ? '#FFFFFF' : theme.text.secondary, fontWeight: '700', marginLeft: 6 }]}>
+              Live Auction
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setActiveTab('history');
+              fetchUserAuctionHistory();
+            }}
+            style={[styles.tabButton, activeTab === 'history' && { backgroundColor: theme.maroon.primary }]}
+          >
+            <HistoryIcon size={14} color={activeTab === 'history' ? '#FFFFFF' : theme.text.secondary} />
+            <Text style={[typography.caption, { color: activeTab === 'history' ? '#FFFFFF' : theme.text.secondary, fontWeight: '700', marginLeft: 6 }]}>
+              My Ticket History
+            </Text>
+          </TouchableOpacity>
         </View>
-        <Text style={[typography.h2, { color: theme.text.primary, marginTop: 16, fontSize: 20 }]}>
-          No Live Auction in Progress
-        </Text>
-        <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 6, maxWidth: 300, lineHeight: 20 }]}>
-          Scheduled auctions open promptly on the 15th of every month at 05:30 PM for all registered group members.
-        </Text>
-        <View style={[styles.statutoryNotice, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
-          <ShieldCheck size={16} color="#D4AF37" />
-          <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8, flex: 1 }]}>
-            Section 14 of Chit Funds Act 1982: Maximum statutory discount is capped at 40%.
+
+        <View style={[styles.emptyContainer, { backgroundColor: theme.surface.base }]}>
+          <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+            <Gavel size={36} color="#D4AF37" />
+          </View>
+          <Text style={[typography.h2, { color: theme.text.primary, marginTop: 16, fontSize: 20 }]}>
+            No Live Auction in Progress
           </Text>
+          <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 6, maxWidth: 300, lineHeight: 20 }]}>
+            Scheduled auctions open promptly on the 15th of every month at 05:30 PM for all registered group members.
+          </Text>
+          <View style={[styles.statutoryNotice, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+            <ShieldCheck size={16} color="#D4AF37" />
+            <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8, flex: 1 }]}>
+              Section 14 of Chit Funds Act 1982: Maximum statutory discount is capped at 40%.
+            </Text>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -217,6 +271,33 @@ export const LiveAuctionScreen = () => {
             </Text>
           </View>
         </View>
+
+        {/* Active Ticket Status Badge */}
+        {activeTicket ? (
+          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 8, borderRadius: 10, backgroundColor: 'rgba(212, 175, 55, 0.12)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ShieldCheck size={14} color="#D4AF37" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37', marginLeft: 6 }}>
+                Active Ticket: {activeTicket.ticket_code}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: '#10B981', textTransform: 'uppercase' }}>
+              {activeTicket.status}
+            </Text>
+          </View>
+        ) : ticketError ? (
+          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 8, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.35)' }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#EF4444' }}>
+              ⚠️ {ticketError}
+            </Text>
+          </View>
+        ) : activeTicketLoading ? (
+          <View style={{ marginHorizontal: 16, marginTop: 10 }}>
+            <Text style={{ fontSize: 10.5, color: '#D4AF37', textAlign: 'center' }}>
+              Verifying member eligibility & issuing ticket...
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.dialWrapper}>
           <BidDial
@@ -364,57 +445,214 @@ export const LiveAuctionScreen = () => {
     </Card>
   );
 
+  const renderHistoryFeed = () => (
+    <Card style={[styles.feedCard, { marginTop: 12 }]}>
+      <View style={styles.feedHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <HistoryIcon size={18} color={theme.maroon.primary} />
+          <Text style={[typography.h3, { color: theme.text.primary, marginLeft: 8, fontWeight: '700' }]}>
+            My Auction & Ticket History
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => fetchUserAuctionHistory()}
+          disabled={userAuctionHistoryLoading}
+          style={{ padding: 4 }}
+        >
+          <RefreshCw size={15} color={theme.text.secondary} />
+        </TouchableOpacity>
+      </View>
+
+      {userAuctionHistoryLoading ? (
+        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+          <Text style={[typography.caption, { color: theme.text.secondary }]}>Loading your auction history...</Text>
+        </View>
+      ) : userAuctionHistory.length === 0 ? (
+        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+          <TicketIcon size={32} color={theme.text.muted} />
+          <Text style={[typography.bodyMedium, { color: theme.text.primary, marginTop: 10, fontWeight: '600' }]}>
+            No Participation History Yet
+          </Text>
+          <Text style={[typography.caption, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, maxWidth: 280 }]}>
+            Tickets issued to you for auctions will appear here with participation and winning status.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.feedList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+          {userAuctionHistory.map((item) => {
+            const isWinner = item.is_winner;
+            const statusColor =
+              item.ticket_status === 'ACTIVE'
+                ? '#10B981'
+                : item.ticket_status === 'USED'
+                ? '#D4AF37'
+                : item.ticket_status === 'EXPIRED'
+                ? '#64748B'
+                : '#EF4444';
+
+            return (
+              <View
+                key={item.ticket_id}
+                style={[
+                  styles.historyRow,
+                  {
+                    backgroundColor: isWinner ? 'rgba(212, 175, 55, 0.08)' : theme.surface.cardSubtle,
+                    borderColor: isWinner ? 'rgba(212, 175, 55, 0.4)' : theme.surface.border,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[typography.bodyMedium, { color: theme.text.primary, fontWeight: '700' }]}>
+                      {item.group_name}
+                    </Text>
+                    {isWinner && (
+                      <View style={[styles.winnerBadge, { backgroundColor: '#D4AF37' }]}>
+                        <Award size={10} color="#000" />
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#000', marginLeft: 3 }}>
+                          WINNER
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <TicketIcon size={12} color={theme.text.muted} />
+                    <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 4, fontSize: 11, fontFamily: 'monospace' }]}>
+                      {item.ticket_code}
+                    </Text>
+                    <Text style={[typography.caption, { color: theme.text.muted, marginLeft: 8, fontSize: 11 }]}>
+                      Month {item.month_number}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View style={[styles.ticketStatusTag, { borderColor: statusColor, backgroundColor: `${statusColor}15` }]}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: statusColor }}>
+                      {item.ticket_status}
+                    </Text>
+                  </View>
+                  {item.winning_bid_pct !== null && (
+                    <Text style={[typography.caption, { color: theme.text.muted, fontSize: 10.5, marginTop: 4 }]}>
+                      Winning: {Number(item.winning_bid_pct).toFixed(1)}%
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+    </Card>
+  );
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.surface.base }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Top Status Bar ── */}
-      <View style={[styles.topBar, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
-        <View style={styles.statusGroup}>
-          {socketStatus === 'connected' ? (
-            <View style={styles.statusBadgeLive}>
-              <View style={styles.livePulseDot} />
-              <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '700', marginLeft: 6 }]}>
-                WebSocket Live
-              </Text>
-            </View>
-          ) : socketStatus === 'reconnecting' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <RefreshCw size={14} color={theme.semantic.warning} />
-              <Text style={[typography.caption, { color: theme.semantic.warning, fontWeight: '700', marginLeft: 5 }]}>
-                Reconnecting…
-              </Text>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <WifiOff size={14} color={theme.semantic.error} />
-              <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '700', marginLeft: 5 }]}>
-                Disconnected
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.quorumBadge}>
-          <Users size={14} color={theme.maroon.primary} />
-          <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700', marginLeft: 5 }]}>
-            {currentAuction.present_subscribers} in Room (Quorum Met)
+      {/* ── Segment Tab Switcher ── */}
+      <View style={[styles.tabBarContainer, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
+        <TouchableOpacity
+          onPress={() => setActiveTab('live')}
+          style={[
+            styles.tabButton,
+            activeTab === 'live' && { backgroundColor: theme.maroon.primary },
+          ]}
+        >
+          <Gavel size={14} color={activeTab === 'live' ? '#FFFFFF' : theme.text.secondary} />
+          <Text
+            style={[
+              typography.caption,
+              {
+                color: activeTab === 'live' ? '#FFFFFF' : theme.text.secondary,
+                fontWeight: '700',
+                marginLeft: 6,
+              },
+            ]}
+          >
+            Live Auction
           </Text>
-        </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {
+            setActiveTab('history');
+            fetchUserAuctionHistory();
+          }}
+          style={[
+            styles.tabButton,
+            activeTab === 'history' && { backgroundColor: theme.maroon.primary },
+          ]}
+        >
+          <HistoryIcon size={14} color={activeTab === 'history' ? '#FFFFFF' : theme.text.secondary} />
+          <Text
+            style={[
+              typography.caption,
+              {
+                color: activeTab === 'history' ? '#FFFFFF' : theme.text.secondary,
+                fontWeight: '700',
+                marginLeft: 6,
+              },
+            ]}
+          >
+            My Ticket History
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {isTablet ? (
-        <View style={styles.tabletLayout}>
-          <View style={styles.tabletLeftPane}>{renderAuctionControls()}</View>
-          <View style={styles.tabletRightPane}>{renderBidFeed()}</View>
-        </View>
+      {activeTab === 'history' ? (
+        renderHistoryFeed()
       ) : (
-        <View style={styles.phoneLayout}>
-          {renderAuctionControls()}
-          <View style={{ marginTop: 20 }}>{renderBidFeed()}</View>
-        </View>
+        <>
+          {/* ── Top Status Bar ── */}
+          <View style={[styles.topBar, { backgroundColor: theme.surface.card, borderColor: theme.surface.border }]}>
+            <View style={styles.statusGroup}>
+              {socketStatus === 'connected' ? (
+                <View style={styles.statusBadgeLive}>
+                  <View style={styles.livePulseDot} />
+                  <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '700', marginLeft: 6 }]}>
+                    WebSocket Live
+                  </Text>
+                </View>
+              ) : socketStatus === 'reconnecting' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <RefreshCw size={14} color={theme.semantic.warning} />
+                  <Text style={[typography.caption, { color: theme.semantic.warning, fontWeight: '700', marginLeft: 5 }]}>
+                    Reconnecting…
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <WifiOff size={14} color={theme.semantic.error} />
+                  <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '700', marginLeft: 5 }]}>
+                    Disconnected
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.quorumBadge}>
+              <Users size={14} color={theme.maroon.primary} />
+              <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700', marginLeft: 5 }]}>
+                {currentAuction.present_subscribers} in Room (Quorum Met)
+              </Text>
+            </View>
+          </View>
+
+          {isTablet ? (
+            <View style={styles.tabletLayout}>
+              <View style={styles.tabletLeftPane}>{renderAuctionControls()}</View>
+              <View style={styles.tabletRightPane}>{renderBidFeed()}</View>
+            </View>
+          ) : (
+            <View style={styles.phoneLayout}>
+              {renderAuctionControls()}
+              <View style={{ marginTop: 20 }}>{renderBidFeed()}</View>
+            </View>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -605,4 +843,47 @@ const styles = StyleSheet.create({
   phoneLayout: {
     width: '100%',
   },
+
+  // ── Segment Tab Switcher ──
+  tabBarContainer: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+
+  // ── Ticket History Feed ──
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  winnerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  ticketStatusTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
 });
+

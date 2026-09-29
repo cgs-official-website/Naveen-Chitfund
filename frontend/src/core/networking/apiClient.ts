@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform, NativeModules } from 'react-native';
 
-const LAN_IP = '192.168.0.33';
+const LAN_IP = '192.168.0.35';
 
 export const resolveHost = (): string => {
   try {
@@ -15,28 +15,29 @@ export const resolveHost = (): string => {
     }
   } catch {}
 
-  // Fallbacks: On physical devices with adb reverse, 'localhost' routes over USB.
+  // Fallbacks: If running on physical Android over USB or adb reverse
+  if (Platform.OS === 'android') {
+    return '127.0.0.1';
+  }
   return 'localhost';
 };
 
-let activeHost = resolveHost();
-
 export const PRODUCTION_BACKEND_URL = 'https://naveen-chitfund-production.up.railway.app';
 
+export let activeHost = resolveHost();
+
 export const getBaseUrl = (): string => {
-  if (!__DEV__) {
-    return `${PRODUCTION_BACKEND_URL}/api/v1`;
-  }
   return `http://${activeHost}:4000/api/v1`;
 };
 
 const BASE_URL = getBaseUrl();
 
-const candidateHosts = [
-  resolveHost(),
+export const candidateHosts = [
+  '127.0.0.1',
   'localhost',
   LAN_IP,
   '10.0.2.2',
+  resolveHost(),
 ].filter((h, i, arr) => h && arr.indexOf(h) === i);
 
 const TOKEN_KEY = 'chittech_jwt_token';
@@ -127,20 +128,23 @@ apiClient.interceptors.response.use(
       const config = error.config as any;
       if (config && !config._isRetryCandidate) {
         config._isRetryCandidate = true;
-        if (__DEV__) {
-          for (const host of candidateHosts) {
-            if (host === activeHost) continue;
-            try {
-              const fallbackBaseUrl = `http://${host}:4000/api/v1`;
-              config.baseURL = fallbackBaseUrl;
-              const res = await axios(config);
-              activeHost = host;
-              apiClient.defaults.baseURL = fallbackBaseUrl;
-              connectivityListeners.forEach((cb) => cb(true));
-              return res;
-            } catch {
-              // try next candidate host
-            }
+        for (const host of candidateHosts) {
+          if (host === activeHost) continue;
+          try {
+            const fallbackBaseUrl = `http://${host}:4000/api/v1`;
+            const endpoint = (config.url || '').replace(/^https?:\/\/[^/]+(\/api\/v1)?/, '');
+            const targetUrl = `${fallbackBaseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+            const res = await axios({
+              ...config,
+              url: targetUrl,
+              baseURL: undefined,
+            });
+            activeHost = host;
+            apiClient.defaults.baseURL = fallbackBaseUrl;
+            connectivityListeners.forEach((cb) => cb(true));
+            return res;
+          } catch {
+            // try next candidate host
           }
         }
       }

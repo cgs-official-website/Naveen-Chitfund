@@ -8,11 +8,19 @@ import { validateBody, getPagination } from '../../utils/validate.js';
 import { calculateDividend, toRupees } from '../../services/dividend.js';
 import { broadcastClose } from '../../sockets/auctionSocket.js';
 import { toPaise } from '../../utils/money.js';
+import {
+  expireAuctionTickets,
+  revokeTicket,
+} from '../../services/ticketService.js';
 
 const router = express.Router();
 
 const forceCloseSchema = z.object({
   reason: z.string().min(5, 'Mandatory reason of at least 5 characters required to force-close auction'),
+});
+
+const revokeTicketSchema = z.object({
+  reason: z.string().min(3, 'Revocation reason is required'),
 });
 
 // GET /api/v1/superadmin/auctions
@@ -115,6 +123,105 @@ router.get(
   })
 );
 
+// GET /api/v1/superadmin/auctions/:id/tickets (List all tickets for an auction)
+router.get(
+  '/:id/tickets',
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { page, limit, offset } = getPagination(req);
+    const status = req.query.status || null;
+
+    let whereClause = 'WHERE t.auction_id = $1';
+    const params = [id];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND t.status = $${params.length}`;
+    }
+
+    const countRes = await query(
+      `SELECT COUNT(*)::int AS total FROM auction_tickets t ${whereClause}`,
+      params
+    );
+    const total = countRes.rows[0]?.total || 0;
+
+    const dataParams = [...params, limit, offset];
+    const { rows } = await query(
+      `SELECT t.*,
+              s.ticket_number,
+              s.subscriber_status,
+              u.full_name,
+              u.phone,
+              u.email,
+              u.kyc_status
+       FROM auction_tickets t
+       JOIN subscriptions s ON s.id = t.subscription_id
+       JOIN users u ON u.id = t.user_id
+       ${whereClause}
+       ORDER BY t.issued_at DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
+
+    res.json({
+      success: true,
+      data: rows,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
+  })
+);
+
+// POST /api/v1/superadmin/auctions/:id/tickets/:ticketId/revoke (Revoke a ticket)
+router.post(
+  '/:id/tickets/:ticketId/revoke',
+  requireSuperAdmin,
+  validateBody(revokeTicketSchema),
+  asyncHandler(async (req, res) => {
+    const { id, ticketId } = req.params;
+    const { reason } = req.body;
+
+    const updatedTicket = await revokeTicket(
+      { query },
+      ticketId,
+      reason,
+      req.superAdmin.id
+    );
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_TICKET_REVOKED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'auction_tickets',
+      entityId: ticketId,
+      metadata: { auctionId: id, ticketCode: updatedTicket.ticket_code, reason },
+      ipAddress: req.ip,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`auction:${id}`).emit('auction:ticket_revoked', {
+        auctionId: id,
+        ticketId,
+        ticketCode: updatedTicket.ticket_code,
+        userId: updatedTicket.user_id,
+        reason,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ticket revoked successfully',
+      data: updatedTicket,
+    });
+  })
+);
+
 // POST /api/v1/superadmin/auctions/:id/force-close
 router.post(
   '/:id/force-close',
@@ -199,7 +306,11 @@ router.post(
         [winningSubId, id]
       );
 
-      // 4. Calculate dividend
+      // 4. ATOMIC TICKET EXPIRATION:
+      // Winner's ticket marked 'USED', others marked 'EXPIRED'
+      await expireAuctionTickets(client, id, winningSubId);
+
+      // 5. Calculate dividend
       const subsRes = await client.query(
         `SELECT id AS subscription_id, ticket_number, subscriber_status
          FROM subscriptions WHERE chit_group_id = $1`,

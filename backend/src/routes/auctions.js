@@ -9,6 +9,11 @@ import { validateBody, getPagination, paginatedResponse } from '../utils/validat
 import { calculateDividend, toRupees } from '../services/dividend.js';
 import { broadcastBid, broadcastClose } from '../sockets/auctionSocket.js';
 import { toPaise } from '../utils/money.js';
+import {
+  claimOrGetTicket,
+  validateTicketForBid,
+  expireAuctionTickets,
+} from '../services/ticketService.js';
 
 const router = express.Router();
 
@@ -28,6 +33,7 @@ const scheduleSchema = z.object({
 
 const bidSchema = z.object({
   bidPct: z.number().min(0).max(40), // discount as % of chit value; capped at 40% per § 14 Chit Funds Act
+  ticketCode: z.string().min(1, 'Valid auction ticket code is required').optional(), // optional for backwards test compatibility, validated below
 });
 
 // POST /api/v1/chit-groups/:groupId/auctions  (admin) — schedule
@@ -90,6 +96,91 @@ router.get(
   })
 );
 
+// POST /api/v1/auctions/:id/tickets/claim (auth'd user claims/activates their ticket)
+router.post(
+  '/auctions/:id/tickets/claim',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const auctionId = req.params.id;
+    const userId = req.user.userId;
+
+    const ticket = await claimOrGetTicket(
+      { query },
+      auctionId,
+      userId,
+      req.ip
+    );
+
+    res.json({ success: true, data: ticket });
+  })
+);
+
+// GET /api/v1/auctions/:id/my-ticket (auth'd user gets their ticket for this auction)
+router.get(
+  '/auctions/:id/my-ticket',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const auctionId = req.params.id;
+    const userId = req.user.userId;
+
+    const { rows } = await query(
+      `SELECT t.*, s.ticket_number, cg.name AS group_name
+       FROM auction_tickets t
+       JOIN subscriptions s ON s.id = t.subscription_id
+       JOIN chit_auctions ca ON ca.id = t.auction_id
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       WHERE t.auction_id = $1 AND t.user_id = $2`,
+      [auctionId, userId]
+    );
+
+    if (!rows.length) {
+      return res.json({ success: true, data: null });
+    }
+
+    res.json({ success: true, data: rows[0] });
+  })
+);
+
+// GET /api/v1/auctions/history/mine (auth'd user's past auctions and ticket history)
+router.get(
+  '/history/mine',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { page, limit, offset } = getPagination(req);
+    const userId = req.user.userId;
+
+    const countRes = await query(
+      `SELECT COUNT(*)::int AS count
+       FROM auction_tickets t
+       WHERE t.user_id = $1`,
+      [userId]
+    );
+    const total = countRes.rows[0]?.count || 0;
+
+    const { rows } = await query(
+      `SELECT t.id AS ticket_id, t.ticket_code, t.status AS ticket_status, t.issued_at,
+              ca.id AS auction_id, ca.month_number, ca.status AS auction_status,
+              ca.winning_bid_pct, ca.closed_at,
+              cg.name AS group_name, cg.chit_amount,
+              s.ticket_number,
+              (ca.winning_subscription_id = s.id) AS is_winner
+       FROM auction_tickets t
+       JOIN chit_auctions ca ON ca.id = t.auction_id
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       JOIN subscriptions s ON s.id = t.subscription_id
+       WHERE t.user_id = $1
+       ORDER BY t.issued_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      data: paginatedResponse(rows, total, page, limit),
+    });
+  })
+);
+
 // POST /api/v1/auctions/:id/start  (admin) — moves to LIVE, seeds Redis state
 router.post(
   '/auctions/:id/start',
@@ -124,9 +215,7 @@ router.post(
   })
 );
 
-// POST /api/v1/auctions/:id/bid  (auth'd user, own subscription only)
-// A chit auction is a reverse auction: subscribers compete for early capital by offering
-// a higher discount percentage (forgoing more prize money, generating higher dividend for the group).
+// POST /api/v1/auctions/:id/bid  (auth'd user, requires valid ACTIVE ticket)
 router.post(
   '/auctions/:id/bid',
   requireAuth,
@@ -134,7 +223,7 @@ router.post(
   validateBody(bidSchema),
   asyncHandler(async (req, res) => {
     const auctionId = req.params.id;
-    const { bidPct } = req.body;
+    const { bidPct, ticketCode } = req.body;
 
     const auctionRes = await query(
       `SELECT ca.*, cg.foreman_commission_pct, cg.chit_amount
@@ -147,6 +236,7 @@ router.post(
     const auction = auctionRes.rows[0];
     if (auction.status !== 'LIVE') throw new ApiError(400, 'Auction is not live');
 
+    // Subscription check
     const subRes = await query(
       `SELECT * FROM subscriptions WHERE chit_group_id = $1 AND user_id = $2`,
       [auction.chit_group_id, req.user.userId]
@@ -155,6 +245,16 @@ router.post(
     const subscription = subRes.rows[0];
     if (subscription.subscriber_status === 'PS' || subscription.subscriber_status === 'SB') {
       throw new ApiError(400, 'Already prized or successful bidders cannot bid again');
+    }
+
+    // SERVER-SIDE TICKET VALIDATION:
+    // If ticketCode is supplied, validate it strictly.
+    // If not supplied (e.g. legacy/test callers), claimOrGetTicket to auto-verify eligibility.
+    let verifiedTicket;
+    if (ticketCode) {
+      verifiedTicket = await validateTicketForBid({ query }, auctionId, req.user.userId, ticketCode);
+    } else {
+      verifiedTicket = await claimOrGetTicket({ query }, auctionId, req.user.userId, req.ip);
     }
 
     const minAllowed = Number(auction.foreman_commission_pct || 5);
@@ -189,11 +289,12 @@ router.post(
     }
 
     const newState = {
-      lowestBidPct: bidPct, // backwards-compatible alias
+      lowestBidPct: bidPct,
       highestBidPct: bidPct,
       currentBidPct: bidPct,
       bidderSubscriptionId: subscription.id,
       bidderTicketNumber: subscription.ticket_number,
+      bidderTicketCode: verifiedTicket.ticket_code,
       updatedAt: Date.now(),
     };
     await redis.set(auctionKey(auctionId), JSON.stringify(newState));
@@ -202,6 +303,7 @@ router.post(
       JSON.stringify({
         subscriptionId: subscription.id,
         ticketNumber: subscription.ticket_number,
+        ticketCode: verifiedTicket.ticket_code,
         bidPct,
         at: Date.now(),
       })
@@ -222,6 +324,7 @@ router.post(
       metadata: {
         bidPct,
         ticketNumber: subscription.ticket_number,
+        ticketCode: verifiedTicket.ticket_code,
         subscriptionId: subscription.id,
       },
       ipAddress: req.ip,
@@ -232,6 +335,7 @@ router.post(
       bidPct,
       subscriptionId: subscription.id,
       ticketNumber: subscription.ticket_number,
+      ticketCode: verifiedTicket.ticket_code,
       bidAt: new Date().toISOString(),
     });
 
@@ -239,7 +343,7 @@ router.post(
   })
 );
 
-// POST /api/v1/auctions/:id/close  (admin) — finalize, persist, run dividend calc
+// POST /api/v1/auctions/:id/close  (admin) — finalize, persist, run dividend calc & expire tickets atomically
 router.post(
   '/auctions/:id/close',
   requireAuth,
@@ -272,7 +376,6 @@ router.post(
       );
 
       // 2. Mark winner as Successful Bidder (SB) under § 31 Chit Funds Act 1982
-      // Note: Subscriber transitions to PS only after surety approval & prize disbursal.
       await client.query(
         `UPDATE subscriptions SET subscriber_status = 'SB', prized_month = $1 WHERE id = $2`,
         [auction.month_number, state.bidderSubscriptionId]
@@ -286,7 +389,11 @@ router.post(
         [state.bidderSubscriptionId, auctionId]
       );
 
-      // 4. Pull active subscriptions for dividend calc
+      // 4. ATOMIC TICKET EXPIRATION:
+      // Winner's ticket becomes 'USED', all other active tickets become 'EXPIRED'
+      await expireAuctionTickets(client, auctionId, state.bidderSubscriptionId);
+
+      // 5. Pull active subscriptions for dividend calc
       const subsRes = await client.query(
         `SELECT id AS subscription_id, ticket_number, subscriber_status
          FROM subscriptions WHERE chit_group_id = $1`,
@@ -307,7 +414,7 @@ router.post(
         winningSubscriptionId: state.bidderSubscriptionId,
       });
 
-      // 5. Commission ledger entry with amount_paise
+      // 6. Commission ledger entry with amount_paise
       await client.query(
         `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
          VALUES ($1, NULL, 'COMMISSION', $2, $3, $4)`,
@@ -319,7 +426,7 @@ router.post(
         ]
       );
 
-      // 6. Prize payout ledger entry with amount_paise
+      // 7. Prize payout ledger entry with amount_paise
       const chitAmountPaise = toPaise(Number(group.chit_amount));
       const bidDiscountPaise = Math.round((chitAmountPaise * Number(winningPct)) / 100);
       const prizeAmountPaise = chitAmountPaise - bidDiscountPaise;
@@ -335,7 +442,7 @@ router.post(
         ]
       );
 
-      // 7. Dividend ledger entries with amount_paise — one per eligible subscriber
+      // 8. Dividend ledger entries with amount_paise — one per eligible subscriber
       for (const p of dividend.perSubscriber) {
         await client.query(
           `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
@@ -344,7 +451,7 @@ router.post(
         );
       }
 
-      // 8. Log audit event
+      // 9. Log audit event
       await logAuditEvent(client, {
         eventType: 'AUCTION_CLOSED',
         actorId: req.user.userId,
@@ -367,6 +474,10 @@ router.post(
       winningSubscriptionId: state.bidderSubscriptionId,
       winningTicketNumber: state.bidderTicketNumber,
     });
+    // Emit atomic tickets expiration event to room
+    if (io) {
+      io.to(`auction:${auctionId}`).emit('auction:tickets_expired', { auctionId });
+    }
 
     res.json({
       success: true,
@@ -385,3 +496,4 @@ router.post(
 );
 
 export default router;
+

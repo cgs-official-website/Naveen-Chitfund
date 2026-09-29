@@ -240,4 +240,92 @@ router.post(
   })
 );
 
+// GET /api/v1/admin/auctions/:id/tickets — list all tickets for an auction
+router.get(
+  '/auctions/:id/tickets',
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { page, limit, offset } = getPagination(req);
+    const { status } = req.query;
+
+    let whereClause = 'WHERE t.auction_id = $1';
+    const params = [id];
+
+    if (status) {
+      params.push(status);
+      whereClause += ` AND t.status = $${params.length}`;
+    }
+
+    const countRes = await query(
+      `SELECT COUNT(*)::int AS total FROM auction_tickets t ${whereClause}`,
+      params
+    );
+    const total = countRes.rows[0]?.total || 0;
+
+    const dataParams = [...params, limit, offset];
+    const { rows } = await query(
+      `SELECT t.*, s.ticket_number, s.subscriber_status, u.full_name, u.phone, u.kyc_status
+       FROM auction_tickets t
+       JOIN subscriptions s ON s.id = t.subscription_id
+       JOIN users u ON u.id = t.user_id
+       ${whereClause}
+       ORDER BY t.issued_at DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
+
+    res.json({
+      success: true,
+      data: paginatedResponse(rows, total, page, limit),
+    });
+  })
+);
+
+// POST /api/v1/admin/auctions/:id/tickets/:ticketId/revoke — revoke an auction ticket
+const adminRevokeSchema = z.object({
+  reason: z.string().min(3, 'Revocation reason is required'),
+});
+
+router.post(
+  '/auctions/:id/tickets/:ticketId/revoke',
+  validateBody(adminRevokeSchema),
+  asyncHandler(async (req, res) => {
+    const { id, ticketId } = req.params;
+    const { reason } = req.body;
+
+    const { rows } = await query(
+      `UPDATE auction_tickets
+       SET status = 'REVOKED', revoked_at = now(), revocation_reason = $1
+       WHERE id = $2 AND status != 'USED'
+       RETURNING *`,
+      [reason, ticketId]
+    );
+
+    if (!rows.length) {
+      throw new ApiError(404, 'Ticket not found or cannot be revoked');
+    }
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_TICKET_REVOKED',
+      actorId: req.user.userId,
+      entityType: 'auction_tickets',
+      entityId: ticketId,
+      metadata: { auctionId: id, ticketCode: rows[0].ticket_code, reason },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`auction:${id}`).emit('auction:ticket_revoked', {
+        auctionId: id,
+        ticketId,
+        ticketCode: rows[0].ticket_code,
+        userId: rows[0].user_id,
+        reason,
+      });
+    }
+
+    res.json({ success: true, message: 'Ticket revoked', data: rows[0] });
+  })
+);
+
 export default router;
