@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { api } from '../api/client';
@@ -9,13 +9,14 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { CurrencyText } from '../components/common/CurrencyText';
 export const PaymentsPage = () => {
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const { data, isLoading } = useQuery({
-        queryKey: ['superadmin-payments', page, search, statusFilter],
+        queryKey: ['superadmin-payments', page, pageSize, search, statusFilter],
         queryFn: async () => {
             const res = await api.get('/api/v1/superadmin/payments', {
-                params: { page, limit: 10, q: search || undefined, status: statusFilter || undefined },
+                params: { page, limit: pageSize, q: search || undefined, status: statusFilter || undefined },
             });
             return res.data;
         },
@@ -86,18 +87,20 @@ export const PaymentsPage = () => {
     return (<div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Payments & Gateway Audit</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <h1 className="text-2xl font-black text-stone-900 dark:text-white tracking-tight">
+            Payments & Gateway Audit
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Reconcile subscriber installment collections with Razorpay payment gateway signatures.
           </p>
         </div>
-        <button onClick={handleExportCsv} className="inline-flex items-center gap-2 px-4 py-2 rounded-input bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-navy-800 text-xs font-semibold shadow-xs transition">
+        <button onClick={handleExportCsv} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/90 dark:bg-[#1A0C16] border border-stone-200/90 dark:border-maroon-800/60 text-stone-800 dark:text-stone-200 hover:border-gold-500/50 hover:text-gold-400 text-xs font-bold shadow-xs transition cursor-pointer backdrop-blur-sm">
           <Download className="w-4 h-4 text-gold-500"/>
           Export Payments (CSV)
         </button>
       </div>
 
-      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
+      <div className="bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5 backdrop-blur-md">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -105,17 +108,24 @@ export const PaymentsPage = () => {
           <select value={statusFilter} onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
-        }} className="text-xs py-2 px-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-700 dark:text-slate-200">
+        }} className="text-xs py-2 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500">
             <option value="">All Payment Statuses</option>
-            <option value="SUCCESS">Success</option>
-            <option value="CREATED">Created</option>
-            <option value="FAILED">Failed</option>
+            <option value="SUCCESS">Success Only</option>
+            <option value="CREATED">Pending / Created</option>
+            <option value="FAILED">Failed Payments</option>
           </select>
         </FilterBar>
 
         <DataTable columns={columns} data={data?.data || []} isLoading={isLoading} emptyTitle="No Payments Recorded"/>
 
-        <Pagination currentPage={page} totalPages={data?.meta?.totalPages || 1} totalItems={data?.meta?.total || 0} pageSize={10} onPageChange={setPage}/>
+        <Pagination
+          currentPage={page}
+          totalPages={data?.meta?.totalPages || 1}
+          totalItems={data?.meta?.total || 0}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>);
 };

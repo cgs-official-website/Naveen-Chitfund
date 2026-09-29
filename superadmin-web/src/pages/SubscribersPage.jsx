@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { api } from '../api/client';
@@ -10,14 +10,15 @@ import { CurrencyText } from '../components/common/CurrencyText';
 import { Modal } from '../components/common/Modal';
 export const SubscribersPage = () => {
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [kycFilter, setKycFilter] = useState('');
     const [selectedSubId, setSelectedSubId] = useState(null);
     const { data, isLoading } = useQuery({
-        queryKey: ['superadmin-subscribers', page, search, kycFilter],
+        queryKey: ['superadmin-subscribers', page, pageSize, search, kycFilter],
         queryFn: async () => {
             const res = await api.get('/api/v1/superadmin/subscribers', {
-                params: { page, limit: 10, q: search || undefined, kycStatus: kycFilter || undefined },
+                params: { page, limit: pageSize, q: search || undefined, kycStatus: kycFilter || undefined },
             });
             return res.data;
         },
@@ -73,14 +74,23 @@ export const SubscribersPage = () => {
     ];
     const sub = detailData?.subscriber;
     return (<div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Subscribers Roster</h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Review participant identity, verified tickets, KYC credentials, and installment payments.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-stone-900 dark:text-white tracking-tight">
+            Subscribers Roster
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+            Review participant identity, verified tickets, KYC credentials, and installment payments.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
+            Registered Chit Members
+          </span>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
+      <div className="bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5 backdrop-blur-md">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -88,9 +98,9 @@ export const SubscribersPage = () => {
           <select value={kycFilter} onChange={(e) => {
             setKycFilter(e.target.value);
             setPage(1);
-        }} className="text-xs py-2 px-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-700 dark:text-slate-200">
+        }} className="text-xs py-2 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500">
             <option value="">All KYC Statuses</option>
-            <option value="APPROVED">Approved</option>
+            <option value="APPROVED">Approved Only</option>
             <option value="PENDING">Pending Review</option>
             <option value="REJECTED">Rejected</option>
           </select>
@@ -98,7 +108,14 @@ export const SubscribersPage = () => {
 
         <DataTable columns={columns} data={data?.data || []} isLoading={isLoading} onRowClick={(item) => setSelectedSubId(item.id)} emptyTitle="No Subscribers" emptyDescription="No subscribers match your search filter."/>
 
-        <Pagination currentPage={page} totalPages={data?.meta?.totalPages || 1} totalItems={data?.meta?.total || 0} pageSize={10} onPageChange={setPage}/>
+        <Pagination
+          currentPage={page}
+          totalPages={data?.meta?.totalPages || 1}
+          totalItems={data?.meta?.total || 0}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Subscriber Detail Modal */}

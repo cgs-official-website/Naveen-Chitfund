@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
 import { api } from '../api/client';
@@ -68,94 +68,103 @@ export const SuretiesPage = () => {
     const submittedItems = items.filter((i) => i.status === 'SUBMITTED' || i.status === 'PENDING');
     const approvedItems = items.filter((i) => i.status === 'APPROVED');
     const disbursedItems = items.filter((i) => i.status === 'DISBURSED');
-    const renderCard = (item) => (<div key={item.id} onClick={() => setSelectedSuretyId(item.id)} className="p-4 bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-xs hover:border-gold-500/50 cursor-pointer transition space-y-3">
+    const renderCard = (item) => (<div key={item.id} onClick={() => setSelectedSuretyId(item.id)} className="p-4 bg-white/95 dark:bg-[#160B12]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-xs hover:border-gold-500/50 hover:shadow-md cursor-pointer transition-all duration-200 space-y-3.5 backdrop-blur-sm">
       <div className="flex items-start justify-between">
         <div>
-          <span className="font-bold text-sm text-slate-900 dark:text-slate-100 block">
+          <span className="font-black text-sm text-stone-900 dark:text-stone-100 block">
             {item.subscriber_name}
           </span>
-          <span className="text-xs text-slate-500">{item.group_name} (Ticket #{item.ticket_number})</span>
+          <span className="text-xs text-stone-500 dark:text-stone-400">{item.group_name} (Ticket #{item.ticket_number})</span>
         </div>
         <StatusBadge status={item.status}/>
       </div>
 
-      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-navy-800/80">
+      <div className="flex items-center justify-between text-xs pt-2.5 border-t border-stone-100 dark:border-maroon-950/70">
         <div>
-          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Net Prize Money</span>
-          <CurrencyText amount={item.netPayoutAmount} className="font-bold text-gold-500 text-sm"/>
+          <span className="text-stone-400 block font-bold text-[10px] uppercase tracking-wider">Net Prize Money</span>
+          <CurrencyText amount={item.netPayoutAmount} className="font-black text-gold-500 dark:text-gold-400 text-sm"/>
         </div>
         <div className="text-right">
-          <span className="text-slate-400 block font-semibold text-[10px] uppercase">Winning Discount</span>
-          <span className="font-bold text-slate-700 dark:text-slate-300">{item.winning_bid_pct}%</span>
+          <span className="text-stone-400 block font-bold text-[10px] uppercase tracking-wider">Winning Discount</span>
+          <span className="font-black text-stone-700 dark:text-stone-200">{item.winning_bid_pct}%</span>
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-        {item.status === 'SUBMITTED' && (<button onClick={() => setApproveTarget(item)} className="px-2.5 py-1 text-xs font-bold rounded-input bg-emerald-600 hover:bg-emerald-500 text-white">
-            Approve
+        {item.status === 'SUBMITTED' && (<button onClick={() => setApproveTarget(item)} className="px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer transition">
+            Approve Claim
           </button>)}
         {item.status === 'APPROVED' && (<button onClick={() => {
                 setBeneficiary(item.subscriber_name || '');
                 setAccountNo(item.bank_account_number || '');
                 setIfsc(item.bank_ifsc || '');
                 setDisburseTarget(item);
-            }} className="px-2.5 py-1 text-xs font-bold rounded-input bg-gold-500 hover:bg-gold-400 text-navy-950">
+            }} className="px-3.5 py-1.5 text-xs font-black rounded-xl bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-[#160812] shadow-sm shadow-gold-500/25 cursor-pointer transition">
             Execute RTGS Disbursal
           </button>)}
-        {item.status === 'DISBURSED' && (<span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+        {item.status === 'DISBURSED' && (<span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400 font-black px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30">
             UTR: {item.utr_reference || 'VERIFIED'}
           </span>)}
       </div>
     </div>);
     return (<div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Sureties & Prize Disbursals</h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Review co-guarantor credentials, CIBIL scores, and authorize direct RTGS prize payouts.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-stone-900 dark:text-white tracking-tight">
+            Sureties & Prize Disbursals
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+            Review co-guarantor credentials, CIBIL scores, and authorize direct RTGS prize payouts.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+            Fiduciary Underwriting Desk
+          </span>
+        </div>
       </div>
 
       {/* Desktop Kanban View (>=1024px) / Mobile Column Stack (<1024px) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Column 1: Submitted */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-amber-500">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-amber-500">
+            <h3 className="font-black text-xs uppercase tracking-wider text-stone-800 dark:text-stone-200">
               Review Queue ({submittedItems.length})
             </h3>
-            <span className="text-xs text-slate-400 font-medium">Pending Vetting</span>
+            <span className="text-xs text-stone-400 font-medium">Pending Vetting</span>
           </div>
           <div className="space-y-3">
             {submittedItems.map(renderCard)}
-            {submittedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-2xl border border-dashed border-slate-200 dark:border-navy-800">
+            {submittedItems.length === 0 && (<div className="p-8 text-center text-xs text-stone-400 rounded-2xl border border-dashed border-stone-200 dark:border-maroon-900/50 bg-white/40 dark:bg-black/20">
                 No sureties awaiting approval
               </div>)}
           </div>
         </div>
 
         {/* Column 2: Approved */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-emerald-500">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-emerald-500">
+            <h3 className="font-black text-xs uppercase tracking-wider text-stone-800 dark:text-stone-200">
               Approved For Payout ({approvedItems.length})
             </h3>
-            <span className="text-xs text-slate-400 font-medium">Ready for RTGS</span>
+            <span className="text-xs text-stone-400 font-medium">Ready for RTGS</span>
           </div>
           <div className="space-y-3">
             {approvedItems.map(renderCard)}
-            {approvedItems.length === 0 && (<div className="p-8 text-center text-xs text-slate-400 rounded-2xl border border-dashed border-slate-200 dark:border-navy-800">
+            {approvedItems.length === 0 && (<div className="p-8 text-center text-xs text-stone-400 rounded-2xl border border-dashed border-stone-200 dark:border-maroon-900/50 bg-white/40 dark:bg-black/20">
                 No approved claims awaiting disbursal
               </div>)}
           </div>
         </div>
 
         {/* Column 3: Disbursed */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-purple-500">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-purple-500">
+            <h3 className="font-black text-xs uppercase tracking-wider text-stone-800 dark:text-stone-200">
               Completed Disbursals ({disbursedItems.length})
             </h3>
-            <span className="text-xs text-slate-400 font-medium">Prized Subscribers (PS)</span>
+            <span className="text-xs text-stone-400 font-medium">Prized Subscribers (PS)</span>
           </div>
           <div className="space-y-3">
             {disbursedItems.map(renderCard)}
@@ -187,7 +196,7 @@ export const SuretiesPage = () => {
                 Co-Guarantors ({detailData?.guarantors?.length || 0})
               </h4>
               <div className="space-y-2">
-                {(detailData?.guarantors || []).map((g) => (<div key={g.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl grid grid-cols-3 gap-2 text-xs">
+                {(detailData?.guarantors || []).map((g) => (<div key={g.id} className="p-3 bg-white dark:bg-navy-950 border border-slate-200 dark:border-navy-800 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-2 text-xs">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-slate-100 block">{g.full_name}</span>
                       <span className="text-slate-400">{g.relationship || 'Co-Applicant'}</span>

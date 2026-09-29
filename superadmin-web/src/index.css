@@ -5,14 +5,58 @@
 @layer base {
   html, body {
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
-    @apply antialiased bg-slate-50 text-slate-900 dark:bg-navy-950 dark:text-slate-100;
+    @apply antialiased bg-[#F8F6F0] text-slate-900 dark:bg-[#0E060B] dark:text-slate-100;
   }
 }
 
-/* Custom scrollbar for tables and drawers */
+/* Luxury FinTech Glassmorphism & Background Glow Utilities */
+.glass-panel {
+  @apply bg-white/80 dark:bg-[#160B12]/80 backdrop-blur-md border border-stone-200/80 dark:border-maroon-800/40 shadow-sm;
+}
+
+.glass-panel-elevated {
+  @apply bg-white/95 dark:bg-[#1A0D16]/90 backdrop-blur-lg border border-stone-200/90 dark:border-gold-500/20 shadow-xl;
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #ECC968 0%, #C9A227 50%, #9E7D17 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.luxury-card-glow {
+  position: relative;
+}
+.luxury-card-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.4), rgba(78, 19, 39, 0.1), rgba(201, 162, 39, 0.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Pill-dock, curved panel and reference UI styling */
+.curved-dashboard-shell {
+  border-radius: 36px;
+}
+
+.pill-card {
+  border-radius: 26px;
+}
+
+.pill-button {
+  border-radius: 9999px;
+}
+
+/* Custom scrollbar for tables, dialogs, and drawers */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -20,11 +64,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-stone-300 dark:bg-maroon-900 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-stone-400 dark:bg-maroon-800;
+  @apply bg-stone-300/80 dark:bg-maroon-900/60 rounded-full hover:bg-gold-500/50 transition-colors;
 }
 
 /* Form input focus ring - brand gold */
@@ -34,5 +74,6 @@ input:focus, select:focus, textarea:focus {
 
 /* Selection brand tint */
 ::selection {
-  @apply bg-gold-300 text-maroon-950;
+  @apply bg-gold-400/40 text-maroon-950 dark:text-gold-200;
 }
+

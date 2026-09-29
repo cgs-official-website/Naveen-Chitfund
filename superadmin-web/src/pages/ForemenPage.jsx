@@ -12,6 +12,7 @@ import { CurrencyText } from '../components/common/CurrencyText';
 export const ForemenPage = () => {
     const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [selectedForeman, setSelectedForeman] = useState(null);
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -22,10 +23,10 @@ export const ForemenPage = () => {
     const [newPhone, setNewPhone] = useState('');
     const [addError, setAddError] = useState('');
     const { data, isLoading } = useQuery({
-        queryKey: ['superadmin-foremen', page, search],
+        queryKey: ['superadmin-foremen', page, pageSize, search],
         queryFn: async () => {
             const res = await api.get('/api/v1/superadmin/foremen', {
-                params: { page, limit: 10, q: search || undefined },
+                params: { page, limit: pageSize, q: search || undefined },
             });
             return res.data;
         },
@@ -118,19 +119,21 @@ export const ForemenPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Foremen Management</h1>
+          <h1 className="text-2xl font-black text-stone-900 dark:text-white tracking-tight">
+            Foremen Governance Deck
+          </h1>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Authorize and govern regional chit fund managers and statutory license holders.
           </p>
         </div>
-        <button onClick={() => setIsAddOpen(true)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-maroon-950 font-bold text-xs uppercase tracking-wider shadow-md shadow-gold-500/20 transition-all hover:scale-105 active:scale-95">
+        <button onClick={() => setIsAddOpen(true)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-[#160812] font-black text-xs uppercase tracking-wider shadow-md shadow-gold-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer">
           <UserPlus className="w-4 h-4"/>
           Add Authorized Foreman
         </button>
       </div>
 
       {/* Filter and Table */}
-      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5">
+      <div className="bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5 backdrop-blur-md">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -141,7 +144,14 @@ export const ForemenPage = () => {
             setIsDetailOpen(true);
         }} emptyTitle="No Foremen Found" emptyDescription="No registered chit foremen match your current search criteria."/>
 
-        <Pagination currentPage={page} totalPages={data?.meta?.totalPages || 1} totalItems={data?.meta?.total || 0} pageSize={10} onPageChange={setPage}/>
+        <Pagination
+          currentPage={page}
+          totalPages={data?.meta?.totalPages || 1}
+          totalItems={data?.meta?.total || 0}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Add Foreman Modal */}

@@ -29,7 +29,7 @@ const loginSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(12, 'New password must be at least 12 characters'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
 });
 
 const refreshSchema = z.object({
@@ -302,10 +302,27 @@ router.post(
       [newHash, adminId]
     );
 
-    // Revoke previous sessions except current
+    // Revoke previous sessions
     await query(
       `UPDATE super_admin_sessions SET revoked_at = now() WHERE super_admin_id = $1`,
       [adminId]
+    );
+
+    // Issue new session & refresh token for current active session
+    const accessToken = signAccessToken({
+      id: req.superAdmin.id,
+      email: req.superAdmin.email,
+    });
+    const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+    const refreshTokenHash = hashToken(rawRefreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Superadmin Client';
+
+    await query(
+      `INSERT INTO super_admin_sessions (super_admin_id, refresh_token_hash, user_agent, ip, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [adminId, refreshTokenHash, userAgent, clientIp, expiresAt]
     );
 
     await logAuditEvent(null, {
@@ -315,10 +332,24 @@ router.post(
       entityType: 'super_admins',
       entityId: adminId,
       metadata: { adminId },
-      ipAddress: req.ip,
+      ipAddress: clientIp,
     });
 
-    res.json({ success: true, message: 'Password updated successfully' });
+    res.json({
+      success: true,
+      message: 'Password updated successfully',
+      data: {
+        accessToken,
+        refreshToken: rawRefreshToken,
+        admin: {
+          id: req.superAdmin.id,
+          email: req.superAdmin.email,
+          fullName: req.superAdmin.full_name,
+          role: req.superAdmin.role,
+          mustChangePassword: false,
+        },
+      },
+    });
   })
 );
 

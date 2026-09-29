@@ -54,42 +54,60 @@ export const Sidebar = ({
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container - Reference Curved Dock Style */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-[#14080F] text-slate-300 border-r border-[#291220] transition-all duration-300 ease-in-out ${
+        className={`fixed z-50 flex flex-col bg-[#140810]/95 dark:bg-[#12060E]/95 text-slate-300 border border-gold-500/20 shadow-2xl transition-all duration-300 ease-in-out backdrop-blur-2xl overflow-hidden ${
           mobileActive
-            ? 'translate-x-0 w-64'
-            : '-translate-x-full lg:translate-x-0'
+            ? 'top-3 bottom-3 left-3 translate-x-0 w-64 rounded-[30px]'
+            : '-translate-x-[150%] pointer-events-none lg:pointer-events-auto lg:top-3 lg:bottom-3 lg:left-3 lg:translate-x-0 lg:rounded-[30px]'
         } ${isDesktopOpen ? 'lg:w-64' : 'lg:w-20'}`}
       >
-        {/* Brand Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-[#291220]">
+        {/* Brand Header & Top Collapse Control */}
+        <div className={`flex items-center ${isDesktopOpen ? 'justify-between px-3.5' : 'justify-center px-0'} h-20 bg-gradient-to-b from-[#1C0A16]/80 to-transparent`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <img
-              src="/logo.png"
-              alt="Naveen Chit Logo"
-              className="w-9 h-9 rounded-xl object-contain shrink-0 border border-gold-400/30 shadow-xs"
-            />
+            <div className="relative shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-[#1C0A16] border border-gold-400/40 flex items-center justify-center overflow-hidden shadow-md">
+                <img
+                  src="/logo.png"
+                  alt="Naveen Chit Logo"
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#12060E] rounded-full shadow-xs" />
+            </div>
             {(isDesktopOpen || mobileActive) && (
               <div className="whitespace-nowrap transition-opacity duration-200">
-                <span className="font-extrabold text-white text-[15px] tracking-wide block">
+                <span className="font-black text-white text-[15px] tracking-wide block bg-gradient-to-r from-white via-stone-100 to-gold-200 bg-clip-text text-transparent">
                   NAVEEN CHIT
                 </span>
-                <span className="block text-[9px] text-gold-400 font-bold tracking-widest uppercase">
-                  Govt Regulated ROSCA
-                </span>
+                {/* <span className="block text-[9px] text-gold-400 font-extrabold tracking-widest uppercase">
+                  Institutional ROSCA
+                </span> */}
               </div>
             )}
           </div>
 
-          {/* Close button for mobile drawer */}
-          <button
-            onClick={handleClose}
-            className="p-1 text-slate-400 hover:text-white rounded-lg lg:hidden"
-            aria-label="Close navigation drawer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Desktop Top Collapse Toggle Button - Only shown when sidebar is open */}
+            {isDesktopOpen && (
+              <button
+                onClick={onToggleDesktop}
+                className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:text-gold-300 hover:bg-white/10 transition cursor-pointer"
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="w-4 h-4 shrink-0" />
+              </button>
+            )}
+
+            {/* Close button for mobile drawer */}
+            <button
+              onClick={handleClose}
+              className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-maroon-900/40 lg:hidden transition cursor-pointer"
+              aria-label="Close navigation drawer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Navigation Items */}
@@ -104,16 +122,22 @@ export const Sidebar = ({
                 onClick={() => handleClose && handleClose()}
                 title={!isDesktopOpen ? item.label : undefined}
                 className={({ isActive }) =>
-                  `flex items-center ${
-                    showLabel ? 'justify-start gap-3.5 px-3.5' : 'justify-center px-0'
-                  } py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all min-h-[42px] ${
+                  `group flex items-center ${
+                    showLabel ? 'justify-start gap-3 px-3.5' : 'justify-center px-0'
+                  } py-2.5 rounded-2xl text-xs font-bold tracking-wide transition-all duration-200 min-h-[44px] ${
                     isActive
-                      ? 'bg-gradient-to-r from-gold-500 to-gold-400 text-maroon-950 font-bold shadow-md shadow-gold-500/25 ring-1 ring-gold-400/40'
-                      : 'text-stone-300 hover:bg-[#25101C] hover:text-gold-300 active:bg-[#301625]'
+                      ? 'bg-gradient-to-r from-gold-500 via-gold-400 to-amber-500 text-[#140810] font-black shadow-lg shadow-gold-500/25 ring-1 ring-gold-300'
+                      : 'text-stone-300/80 hover:bg-white/5 hover:text-gold-300 active:scale-[0.98]'
                   }`
                 }
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <div
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all ${
+                    isDesktopOpen || mobileActive ? '' : 'w-10 h-10 rounded-2xl'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+                </div>
                 {showLabel && (
                   <span className="whitespace-nowrap">{item.label}</span>
                 )}
@@ -121,32 +145,6 @@ export const Sidebar = ({
             );
           })}
         </nav>
-
-        {/* Desktop Collapse / Expand Toggle Button & Statutory Footer */}
-        <div className="p-3 border-t border-navy-800/80 flex flex-col gap-2">
-          {/* Desktop Toggle Button */}
-          <button
-            onClick={onToggleDesktop}
-            className="hidden lg:flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-400 hover:bg-navy-900 transition"
-            title={isDesktopOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            {isDesktopOpen ? (
-              <>
-                <ChevronLeft className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">Collapse Sidebar</span>
-              </>
-            ) : (
-              <ChevronRight className="w-4 h-4 shrink-0" />
-            )}
-          </button>
-
-          {(isDesktopOpen || mobileActive) && (
-            <div className="px-1 text-[11px] text-slate-500">
-              <p className="font-semibold text-slate-400">Section 18 Chit Funds Act</p>
-              <p className="mt-0.5">Strict 40% Cap • 5% Commission</p>
-            </div>
-          )}
-        </div>
       </aside>
     </>
   );

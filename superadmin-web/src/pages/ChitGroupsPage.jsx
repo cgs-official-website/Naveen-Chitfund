@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layers, Eye, Users, Gavel, BookOpen } from 'lucide-react';
 import { api } from '../api/client';
@@ -10,15 +10,16 @@ import { CurrencyText } from '../components/common/CurrencyText';
 import { Modal } from '../components/common/Modal';
 export const ChitGroupsPage = () => {
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [selectedGroupId, setSelectedGroupId] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
     const { data, isLoading } = useQuery({
-        queryKey: ['superadmin-chit-groups', page, search, statusFilter],
+        queryKey: ['superadmin-chit-groups', page, pageSize, search, statusFilter],
         queryFn: async () => {
             const res = await api.get('/api/v1/superadmin/chit-groups', {
-                params: { page, limit: 10, q: search || undefined, status: statusFilter || undefined },
+                params: { page, limit: pageSize, q: search || undefined, status: statusFilter || undefined },
             });
             return res.data;
         },
@@ -80,14 +81,23 @@ export const ChitGroupsPage = () => {
     ];
     const group = detailData?.group;
     return (<div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">Chit Groups Portfolio</h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Review state-sanctioned ROSCA pools, member allocations, and auction schedules.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-stone-900 dark:text-white tracking-tight">
+            Chit Groups Portfolio
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+            Review state-sanctioned ROSCA pools, subscriber allocations, and reverse auction schedules.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
+            Govt Sanctioned ROSCA Pools
+          </span>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-[#1A0C14] border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4">
+      <div className="bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-5 backdrop-blur-md">
         <FilterBar searchQuery={search} onSearchChange={(q) => {
             setSearch(q);
             setPage(1);
@@ -95,10 +105,10 @@ export const ChitGroupsPage = () => {
           <select value={statusFilter} onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
-        }} className="text-xs py-2 px-3 bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-700 rounded-input text-slate-700 dark:text-slate-200">
+        }} className="text-xs py-2 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500">
             <option value="">All Statuses</option>
-            <option value="OPEN">Open</option>
-            <option value="ACTIVE">Active</option>
+            <option value="OPEN">Open For Enrollment</option>
+            <option value="ACTIVE">Active & Bidding</option>
             <option value="COMPLETED">Completed</option>
           </select>
         </FilterBar>
@@ -108,14 +118,21 @@ export const ChitGroupsPage = () => {
             setActiveTab('overview');
         }} emptyTitle="No Chit Groups" emptyDescription="No registered chit groups found matching your criteria."/>
 
-        <Pagination currentPage={page} totalPages={data?.meta?.totalPages || 1} totalItems={data?.meta?.total || 0} pageSize={10} onPageChange={setPage}/>
+        <Pagination
+          currentPage={page}
+          totalPages={data?.meta?.totalPages || 1}
+          totalItems={data?.meta?.total || 0}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Tabbed Group Detail Modal */}
       <Modal isOpen={Boolean(selectedGroupId)} onClose={() => setSelectedGroupId(null)} title={group?.name || 'Chit Group Detail'} maxWidth="4xl">
-        {isDetailLoading ? (<div className="p-8 text-center text-xs text-slate-400 animate-pulse">Loading group details...</div>) : (<div className="space-y-6">
+        {isDetailLoading ? (<div className="p-8 text-center text-xs text-stone-400 animate-pulse">Loading group details...</div>) : (<div className="space-y-6">
             {/* Tabs Header */}
-            <div className="flex border-b border-slate-200 dark:border-navy-800 text-xs font-semibold gap-6">
+            <div className="flex border-b border-stone-200 dark:border-maroon-900/50 text-xs font-bold gap-4 sm:gap-6 overflow-x-auto pb-0.5 scrollbar-none">
               {[
                 { key: 'overview', label: 'Overview', icon: Layers },
                 { key: 'members', label: `Members (${detailData?.members?.length || 0})`, icon: Users },
@@ -124,9 +141,9 @@ export const ChitGroupsPage = () => {
             ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.key;
-                return (<button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`pb-3 flex items-center gap-1.5 border-b-2 transition ${isActive
-                        ? 'border-gold-500 text-gold-600 dark:text-gold-400 font-bold'
-                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}>
+                return (<button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`pb-3 flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${isActive
+                        ? 'border-gold-500 text-gold-600 dark:text-gold-400 font-black'
+                        : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'}`}>
                     <Icon className="w-4 h-4"/>
                     <span>{tab.label}</span>
                   </button>);
@@ -135,7 +152,7 @@ export const ChitGroupsPage = () => {
 
             {/* Tab 1: Overview */}
             {activeTab === 'overview' && (<div className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-navy-950/60 border border-slate-100 dark:border-navy-800 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 p-4 rounded-2xl bg-stone-50/80 dark:bg-[#1A0B14] border border-stone-200/80 dark:border-maroon-900/40 text-xs">
                   <div>
                     <span className="text-slate-400 block">Total Chit Value</span>
                     <span className="text-base font-bold text-gold-500">

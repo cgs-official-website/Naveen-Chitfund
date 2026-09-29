@@ -78,11 +78,11 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-navy-950/60 border border-gold-500/20 text-xs space-y-1.5">
+          {/* <div className="p-4 rounded-xl bg-navy-950/60 border border-gold-500/20 text-xs space-y-1.5">
             <span className="font-semibold text-gold-400 block">Pre-seeded Test Credentials:</span>
             <p className="text-slate-300">Email: <code className="text-gold-200">admin@naveenchit.com</code></p>
             <p className="text-slate-300">Password: <code className="text-gold-200">12345678</code></p>
-          </div>
+          </div> */}
         </div>
 
         {/* Right Form Panel */}
