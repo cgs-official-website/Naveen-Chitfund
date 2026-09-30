@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { useAdminNotifications } from './useAdminNotifications';
 
 const navItems = [
   { path: '/chit/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -43,6 +44,7 @@ export const Sidebar = ({
 }) => {
   const mobileActive = isOpen !== undefined ? isOpen : isMobileOpen;
   const handleClose = onClose || onCloseMobile;
+  const { countsByPath, dismissByPath } = useAdminNotifications();
 
   return (
     <>
@@ -80,9 +82,6 @@ export const Sidebar = ({
                 <span className="font-black text-white text-[15px] tracking-wide block bg-gradient-to-r from-white via-stone-100 to-gold-200 bg-clip-text text-transparent">
                   NAVEEN CHIT
                 </span>
-                {/* <span className="block text-[9px] text-gold-400 font-extrabold tracking-widest uppercase">
-                  Institutional ROSCA
-                </span> */}
               </div>
             )}
           </div>
@@ -115,15 +114,24 @@ export const Sidebar = ({
           {navItems.map((item) => {
             const Icon = item.icon;
             const showLabel = isDesktopOpen || mobileActive;
+            const badgeCount = countsByPath[item.path] || 0;
+
+            const handleClick = () => {
+              if (badgeCount > 0) {
+                dismissByPath(item.path);
+              }
+              if (handleClose) handleClose();
+            };
+
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                onClick={() => handleClose && handleClose()}
-                title={!isDesktopOpen ? item.label : undefined}
+                onClick={handleClick}
+                title={!isDesktopOpen ? `${item.label} ${badgeCount > 0 ? `(${badgeCount})` : ''}` : undefined}
                 className={({ isActive }) =>
-                  `group flex items-center ${
-                    showLabel ? 'justify-start gap-3 px-3.5' : 'justify-center px-0'
+                  `group relative flex items-center ${
+                    showLabel ? 'justify-between px-3.5' : 'justify-center px-0'
                   } py-2.5 rounded-2xl text-xs font-bold tracking-wide transition-all duration-200 min-h-[44px] ${
                     isActive
                       ? 'bg-gradient-to-r from-gold-500 via-gold-400 to-amber-500 text-[#140810] font-black shadow-lg shadow-gold-500/25 ring-1 ring-gold-300'
@@ -131,15 +139,38 @@ export const Sidebar = ({
                   }`
                 }
               >
-                <div
-                  className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all ${
-                    isDesktopOpen || mobileActive ? '' : 'w-10 h-10 rounded-2xl'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-                </div>
-                {showLabel && (
-                  <span className="whitespace-nowrap">{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`relative w-7 h-7 rounded-xl flex items-center justify-center transition-all ${
+                          isDesktopOpen || mobileActive ? '' : 'w-10 h-10 rounded-2xl'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+                        {/* Compact indicator dot when sidebar is collapsed */}
+                        {!showLabel && badgeCount > 0 && (
+                          <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-[#140810] animate-pulse" />
+                        )}
+                      </div>
+                      {showLabel && (
+                        <span className="whitespace-nowrap">{item.label}</span>
+                      )}
+                    </div>
+
+                    {/* Numeric counter badge in sidebar - disappears on click */}
+                    {showLabel && badgeCount > 0 && (
+                      <span
+                        className={`inline-flex items-center justify-center px-2 py-0.5 min-w-[20px] text-[10px] font-black rounded-full transition-all shadow-xs ${
+                          isActive
+                            ? 'bg-[#140810] text-gold-300 ring-1 ring-[#140810]'
+                            : 'bg-rose-500 text-white shadow-rose-500/40 animate-pulse'
+                        }`}
+                      >
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
+                  </>
                 )}
               </NavLink>
             );

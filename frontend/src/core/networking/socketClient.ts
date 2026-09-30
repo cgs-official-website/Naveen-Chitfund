@@ -4,6 +4,9 @@ import { Platform } from 'react-native';
 import { activeHost, resolveHost, PRODUCTION_BACKEND_URL } from './apiClient';
 
 export const getSocketUrl = (): string => {
+  if (!__DEV__) {
+    return PRODUCTION_BACKEND_URL;
+  }
   return `http://${activeHost || resolveHost()}:4000`;
 };
 

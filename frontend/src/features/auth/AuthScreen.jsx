@@ -197,6 +197,7 @@ export const AuthScreen = ({ onComplete }) => {
       setLoading(false);
       if (onComplete) onComplete();
     } catch (err) {
+      console.error('[Registration Error]:', err, err.response?.data || err.message);
       setLoading(false);
       const msg = err.message || '';
       if (msg.includes('Network') || msg.includes('timeout') || msg.includes('ECONNREFUSED')) {

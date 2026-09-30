@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform, NativeModules } from 'react-native';
 
-const LAN_IP = '192.168.0.35';
+const LAN_IP = '192.168.0.80';
 
 export const resolveHost = (): string => {
   try {
@@ -27,6 +27,9 @@ export const PRODUCTION_BACKEND_URL = 'https://naveen-chitfund-production.up.rai
 export let activeHost = resolveHost();
 
 export const getBaseUrl = (): string => {
+  if (!__DEV__) {
+    return `${PRODUCTION_BACKEND_URL}/api/v1`;
+  }
   return `http://${activeHost}:4000/api/v1`;
 };
 
