@@ -52,7 +52,19 @@ function broadcastClose(io, auctionId, payload) {
   const data = { auctionId, ...payload };
   io.to(room).emit('auction_closed', data);
   io.to(room).emit('auction:closed', data);
+  io.emit('auction_closed', data);
+  io.emit('auction:closed', data);
 }
 
-export { attachAuctionSocket, broadcastBid, broadcastClose, roomName };
+function broadcastStart(io, auctionId, payload) {
+  const room = roomName(auctionId);
+  const data = { auctionId, ...payload };
+  io.to(room).emit('auction_started', data);
+  io.to(room).emit('auction:started', data);
+  io.emit('auction_started', data);
+  io.emit('auction:started', data);
+}
+
+export { attachAuctionSocket, broadcastBid, broadcastClose, broadcastStart, roomName };
+
 

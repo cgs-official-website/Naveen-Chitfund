@@ -11,6 +11,7 @@ import { broadcastBid, broadcastClose } from '../sockets/auctionSocket.js';
 import { toPaise } from '../utils/money.js';
 import {
   claimOrGetTicket,
+  applyForAuctionTicket,
   validateTicketForBid,
   expireAuctionTickets,
 } from '../services/ticketService.js';
@@ -93,6 +94,42 @@ router.get(
     }
 
     res.json({ success: true, data: { ...rows[0], liveState } });
+  })
+);
+
+// POST /api/v1/auctions/:id/apply (auth'd user applies for auction participation permission)
+router.post(
+  '/auctions/:id/apply',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const auctionId = req.params.id;
+    const userId = req.user.userId;
+
+    const ticket = await applyForAuctionTicket(
+      { query },
+      auctionId,
+      userId,
+      req.ip
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('auction:application_submitted', {
+        auctionId,
+        ticketId: ticket.id,
+        userId,
+        ticketNumber: ticket.ticket_number,
+        fullName: ticket.full_name,
+        ticketCode: ticket.ticket_code,
+        status: ticket.status,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Application submitted successfully. Awaiting Foreman approval.',
+      data: ticket,
+    });
   })
 );
 

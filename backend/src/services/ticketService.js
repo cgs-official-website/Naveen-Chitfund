@@ -91,6 +91,131 @@ export async function checkMemberEligibility(client, auctionId, userId) {
 }
 
 /**
+ * Apply for an auction ticket (requires admin approval).
+ * Checks participant count limit.
+ */
+export async function applyForAuctionTicket(client, auctionId, userId, ipAddress = null) {
+  // Check if application/ticket already exists
+  const existingRes = await client.query(
+    `SELECT t.*, s.ticket_number, u.full_name
+     FROM auction_tickets t
+     JOIN subscriptions s ON s.id = t.subscription_id
+     JOIN users u ON u.id = t.user_id
+     WHERE t.auction_id = $1 AND t.user_id = $2`,
+    [auctionId, userId]
+  );
+
+  if (existingRes.rows.length) {
+    const existing = existingRes.rows[0];
+    if (existing.status === 'REVOKED') {
+      throw new ApiError(403, `Your ticket for this auction was revoked: ${existing.revocation_reason || 'Administrative action'}`);
+    }
+    return existing;
+  }
+
+  // Validate member eligibility
+  const { auction, subscription } = await checkMemberEligibility(client, auctionId, userId);
+
+  if (auction.status === 'COMPLETED' || auction.status === 'CANCELLED') {
+    throw new ApiError(400, 'Cannot apply for closed or cancelled auctions');
+  }
+
+  // Check max participants limit
+  const countRes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM auction_tickets
+     WHERE auction_id = $1 AND status IN ('APPLIED', 'ACTIVE', 'ISSUED')`,
+    [auctionId]
+  );
+  const currentCount = countRes.rows[0]?.count || 0;
+  const maxLimit = auction.max_participants || 20;
+
+  if (currentCount >= maxLimit) {
+    throw new ApiError(400, `Auction participant limit reached (maximum ${maxLimit} participants allowed)`);
+  }
+
+  const ticketCode = generateTicketCode(auctionId);
+
+  // Insert with APPLIED status
+  const insertRes = await client.query(
+    `INSERT INTO auction_tickets (auction_id, subscription_id, user_id, ticket_code, status, ip_address)
+     VALUES ($1, $2, $3, $4, 'APPLIED', $5)
+     ON CONFLICT (auction_id, subscription_id) DO UPDATE
+     SET ip_address = COALESCE(EXCLUDED.ip_address, auction_tickets.ip_address)
+     RETURNING *`,
+    [auctionId, subscription.id, userId, ticketCode, ipAddress]
+  );
+
+  return {
+    ...insertRes.rows[0],
+    ticket_number: subscription.ticket_number,
+    full_name: subscription.full_name,
+  };
+}
+
+/**
+ * Superadmin approves an auction ticket application, granting live auction access.
+ */
+export async function approveAuctionTicket(client, ticketId, adminId) {
+  // Check auction capacity
+  const ticketRes = await client.query(
+    `SELECT t.*, ca.max_participants, ca.status AS auction_status
+     FROM auction_tickets t
+     JOIN chit_auctions ca ON ca.id = t.auction_id
+     WHERE t.id = $1`,
+    [ticketId]
+  );
+  if (!ticketRes.rows.length) {
+    throw new ApiError(404, 'Ticket application not found');
+  }
+  const ticket = ticketRes.rows[0];
+
+  const activeCountRes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM auction_tickets
+     WHERE auction_id = $1 AND status = 'ACTIVE'`,
+    [ticket.auction_id]
+  );
+  const activeCount = activeCountRes.rows[0]?.count || 0;
+  if (activeCount >= ticket.max_participants) {
+    throw new ApiError(400, `Cannot approve: Maximum capacity of ${ticket.max_participants} active participants reached`);
+  }
+
+  const updateRes = await client.query(
+    `UPDATE auction_tickets
+     SET status = 'ACTIVE', activated_at = now()
+     WHERE id = $1 AND status IN ('APPLIED', 'PENDING')
+     RETURNING *`,
+    [ticketId]
+  );
+
+  if (!updateRes.rows.length) {
+    throw new ApiError(400, 'Ticket is not in pending application state');
+  }
+
+  return updateRes.rows[0];
+}
+
+/**
+ * Superadmin rejects an auction ticket application.
+ */
+export async function rejectAuctionTicket(client, ticketId, reason, adminId) {
+  const updateRes = await client.query(
+    `UPDATE auction_tickets
+     SET status = 'REJECTED', revocation_reason = $1
+     WHERE id = $2 AND status IN ('APPLIED', 'PENDING')
+     RETURNING *`,
+    [reason || 'Application rejected by Foreman', ticketId]
+  );
+
+  if (!updateRes.rows.length) {
+    throw new ApiError(400, 'Ticket is not in pending application state');
+  }
+
+  return updateRes.rows[0];
+}
+
+/**
  * Claim or retrieve an existing ticket for an auction session.
  * Idempotent: If an active ticket already exists, returns it.
  * If none exists, validates eligibility and creates a new ACTIVE ticket.

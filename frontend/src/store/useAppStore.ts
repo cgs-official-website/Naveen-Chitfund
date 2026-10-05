@@ -110,10 +110,11 @@ export interface AuctionTicket {
   subscription_id: string;
   user_id: string;
   ticket_code: string;
-  status: 'ISSUED' | 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+  status: 'APPLIED' | 'PENDING' | 'ISSUED' | 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED' | 'REJECTED';
   issued_at: string;
   ticket_number?: number;
   group_name?: string;
+  full_name?: string;
 }
 
 export interface UserAuctionHistoryItem {
@@ -287,6 +288,7 @@ interface AppState {
   // Actions
   login: (user: User, token: string) => void;
   logout: () => void;
+  applyForAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
   claimAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
   fetchMyAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
   fetchUserAuctionHistory: () => Promise<{ success: boolean; data?: UserAuctionHistoryItem[]; error?: string }>;
@@ -605,6 +607,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to join chit group' };
+    }
+  },
+
+  applyForAuctionTicket: async (auctionId: string) => {
+    set({ activeTicketLoading: true });
+    try {
+      const res = await apiClient.post(`/auctions/${auctionId}/apply`);
+      const ticket: AuctionTicket = res.data?.data;
+      set({ activeTicket: ticket, activeTicketLoading: false });
+      return { success: true, data: ticket };
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to apply for auction ticket';
+      set({ activeTicketLoading: false });
+      return { success: false, error: errorMsg };
     }
   },
 

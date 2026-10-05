@@ -1,10 +1,70 @@
 import express from 'express';
-import { query } from '../../db.js';
+import { z } from 'zod';
+import { query, logAuditEvent } from '../../db.js';
 import { asyncHandler, ApiError } from '../../middleware/errorHandler.js';
 import { requireSuperAdmin } from '../../middleware/superadminAuth.js';
-import { getPagination } from '../../utils/validate.js';
+import { getPagination, validateBody } from '../../utils/validate.js';
+import { toPaise } from '../../utils/money.js';
 
 const router = express.Router();
+
+const createChitGroupSchema = z.object({
+  name: z.string().min(3, 'Group name must be at least 3 characters'),
+  chitAmount: z.number().positive('Chit amount must be positive'),
+  durationMonths: z.number().int().min(2, 'Duration must be at least 2 months').max(120),
+  foremanCommissionPct: z.number().min(0).max(20).default(5),
+  registrarStateCode: z.string().optional().default('TN'),
+  dividendDistributionPolicy: z.enum(['ALL_SUBSCRIBERS', 'NON_PRIZED_ONLY']).default('NON_PRIZED_ONLY'),
+  psoNumber: z.string().optional(),
+  fdrNumber: z.string().optional(),
+});
+
+// POST /api/v1/superadmin/chit-groups
+router.post(
+  '/',
+  requireSuperAdmin,
+  validateBody(createChitGroupSchema),
+  asyncHandler(async (req, res) => {
+    const b = req.body;
+    const chitAmountPaise = toPaise(b.chitAmount);
+
+    const { rows } = await query(
+      `INSERT INTO chit_groups
+         (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status, pso_number, fdr_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9)
+       RETURNING *`,
+      [
+        b.name,
+        b.chitAmount,
+        chitAmountPaise,
+        b.durationMonths,
+        b.foremanCommissionPct,
+        b.registrarStateCode || 'TN',
+        b.dividendDistributionPolicy,
+        b.psoNumber || null,
+        b.fdrNumber || null,
+      ]
+    );
+
+    const newGroup = rows[0];
+
+    await logAuditEvent(null, {
+      eventType: 'CHIT_GROUP_CREATED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'chit_groups',
+      entityId: newGroup.id,
+      metadata: { name: b.name, chitAmount: b.chitAmount, durationMonths: b.durationMonths },
+      ipAddress: req.ip,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Chit Group created successfully',
+      data: newGroup,
+    });
+  })
+);
 
 // GET /api/v1/superadmin/chit-groups
 router.get(

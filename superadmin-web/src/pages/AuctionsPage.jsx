@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
-import { Eye, AlertOctagon } from 'lucide-react';
+import { Eye, AlertOctagon, Plus, Play, Gavel, Check, XCircle, UserCheck, Users } from 'lucide-react';
 import { api } from '../api/client';
 import { DataTable } from '../components/common/DataTable';
 import { FilterBar } from '../components/common/FilterBar';
@@ -21,6 +21,12 @@ export const AuctionsPage = () => {
     const [forceCloseTarget, setForceCloseTarget] = useState(null);
     const [modalTab, setModalTab] = useState('bids'); // 'bids' | 'tickets'
     const [revokeTarget, setRevokeTarget] = useState(null);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newAuctionGroupId, setNewAuctionGroupId] = useState('');
+    const [newAuctionMonth, setNewAuctionMonth] = useState(1);
+    const [newAuctionStartNow, setNewAuctionStartNow] = useState(true);
+    const [newAuctionMaxParticipants, setNewAuctionMaxParticipants] = useState(20);
+    const [createError, setCreateError] = useState('');
     // Live Socket bids stream state
     const [liveBids, setLiveBids] = useState([]);
     const { data, isLoading } = useQuery({
@@ -63,6 +69,27 @@ export const AuctionsPage = () => {
             setRevokeTarget(null);
         },
     });
+    const approveTicketMutation = useMutation({
+        mutationFn: async (ticketId) => {
+            const res = await api.post(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets/${ticketId}/approve`);
+            return res.data;
+        },
+        onSuccess: () => {
+            refetchTickets();
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+        },
+    });
+
+    const rejectTicketMutation = useMutation({
+        mutationFn: async ({ ticketId, reason }) => {
+            const res = await api.post(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets/${ticketId}/reject`, { reason });
+            return res.data;
+        },
+        onSuccess: () => {
+            refetchTickets();
+        },
+    });
+
     // Socket.IO connection for live auction room
     useEffect(() => {
         if (!selectedAuctionId)
@@ -87,6 +114,9 @@ export const AuctionsPage = () => {
                 ...prev,
             ]);
         });
+        socket.on('auction:application_submitted', () => {
+            refetchTickets();
+        });
         socket.on('auction_closed', () => {
             queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
         });
@@ -94,7 +124,7 @@ export const AuctionsPage = () => {
             socket.emit('leave_auction', { auctionId: selectedAuctionId });
             socket.disconnect();
         };
-    }, [selectedAuctionId, accessToken, queryClient]);
+    }, [selectedAuctionId, accessToken, queryClient, refetchTickets]);
     // Sync historical bids when detail loads
     useEffect(() => {
         if (bidsData?.bids) {
@@ -115,6 +145,45 @@ export const AuctionsPage = () => {
             queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
             setForceCloseTarget(null);
             setSelectedAuctionId(null);
+        },
+    });
+
+    // Chit groups query for auction creation dropdown
+    const { data: groupsData } = useQuery({
+        queryKey: ['superadmin-chit-groups-dropdown'],
+        queryFn: async () => {
+            const res = await api.get('/api/v1/superadmin/chit-groups', { params: { limit: 100 } });
+            return res.data?.data || [];
+        },
+        enabled: isCreateModalOpen,
+    });
+
+    // Create Auction Mutation
+    const createAuctionMutation = useMutation({
+        mutationFn: async (payload) => {
+            const res = await api.post('/api/v1/superadmin/auctions', payload);
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+            setIsCreateModalOpen(false);
+            setNewAuctionGroupId('');
+            setNewAuctionMonth(1);
+            setCreateError('');
+        },
+        onError: (err) => {
+            setCreateError(err.response?.data?.error || err.message || 'Failed to create auction');
+        },
+    });
+
+    // Start Live Auction Mutation
+    const startAuctionMutation = useMutation({
+        mutationFn: async (id) => {
+            const res = await api.post(`/api/v1/superadmin/auctions/${id}/start`);
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
         },
     });
     const columns = [
@@ -152,9 +221,15 @@ export const AuctionsPage = () => {
         {
             header: 'Actions',
             cell: (item) => (<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setSelectedAuctionId(item.id)} className="text-xs font-semibold text-gold-600 dark:text-gold-400 hover:underline flex items-center gap-1">
-            <Eye className="w-3.5 h-3.5"/> Monitor
-          </button>
+          {item.status === 'SCHEDULED' && (
+            <button
+              onClick={() => startAuctionMutation.mutate(item.id)}
+              disabled={startAuctionMutation.isPending}
+              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 cursor-pointer transition shadow-xs"
+            >
+              <Play className="w-3 h-3 fill-current" /> Start Live
+            </button>
+          )}
           {item.status !== 'COMPLETED' && (<button onClick={() => setForceCloseTarget(item)} className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded border border-rose-200 dark:border-rose-900">
               Force Close
             </button>)}
@@ -174,9 +249,18 @@ export const AuctionsPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+          <button
+            onClick={() => {
+              setIsCreateModalOpen(true);
+              setCreateError('');
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gold-500 hover:bg-gold-400 text-stone-950 transition cursor-pointer shadow-sm"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" /> Create Auction
+          </button>
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            40% Reverse Auction Rule Enforced
+            40% Statutory Cap
           </span>
         </div>
       </div>
@@ -313,20 +397,29 @@ export const AuctionsPage = () => {
             /* Participation Tickets View */
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider">
-                  Issued & Active Auction Tickets ({ticketsData?.data?.length || 0})
-                </h4>
+                <div>
+                  <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                    Applicant & Ticket Authorizations ({ticketsData?.data?.length || 0})
+                  </h4>
+                  <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                    Capacity Limit: {ticketsData?.data?.filter((t) => t.status === 'ACTIVE').length || 0} / {activeAuction?.max_participants || 20} Active Bidders Allowed
+                  </span>
+                </div>
               </div>
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {!ticketsData?.data || ticketsData.data.length === 0 ? (
                   <div className="p-8 text-center text-xs text-stone-400 border border-dashed border-stone-200 dark:border-maroon-900/50 rounded-2xl">
-                    No tickets generated yet for this auction session.
+                    No members have applied for tickets in this auction session yet.
                   </div>
                 ) : (
                   ticketsData.data.map((t) => (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-stone-50 dark:bg-[#1A0B14] border border-stone-200/80 dark:border-maroon-900/40 flex items-center justify-between text-xs"
+                      className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                        t.status === 'APPLIED' || t.status === 'PENDING'
+                          ? 'bg-amber-500/10 border-amber-500/30'
+                          : 'bg-stone-50 dark:bg-[#1A0B14] border-stone-200/80 dark:border-maroon-900/40'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="font-mono font-bold text-stone-900 dark:text-stone-100 bg-white dark:bg-[#12070D] px-2.5 py-1 rounded-lg border border-stone-200 dark:border-maroon-800/50">
@@ -337,12 +430,34 @@ export const AuctionsPage = () => {
                             {t.full_name || 'Subscriber'} (Slot #{t.ticket_number})
                           </span>
                           <span className="text-[10px] text-stone-400">
-                            Issued: {new Date(t.issued_at).toLocaleString()}
+                            {t.status === 'APPLIED' ? 'Requested: ' : 'Issued: '}
+                            {new Date(t.issued_at).toLocaleString()}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <StatusBadge status={t.status} />
+
+                        {/* If Applied: Show Approve and Reject buttons */}
+                        {(t.status === 'APPLIED' || t.status === 'PENDING') && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => approveTicketMutation.mutate(t.id)}
+                              disabled={approveTicketMutation.isPending}
+                              className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 rounded-lg border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <Check className="w-3 h-3 stroke-[3]" /> Approve Access
+                            </button>
+                            <button
+                              onClick={() => rejectTicketMutation.mutate({ ticketId: t.id, reason: 'Foreman capacity / risk decision' })}
+                              disabled={rejectTicketMutation.isPending}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-lg border border-rose-500/20 flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <XCircle className="w-3 h-3" /> Reject
+                            </button>
+                          </div>
+                        )}
+
                         {t.status === 'ACTIVE' && (
                           <button
                             onClick={() => setRevokeTarget(t)}
@@ -390,6 +505,134 @@ export const AuctionsPage = () => {
                 reason,
             });
         }}/>
+
+      {/* Create Auction Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateError('');
+        }}
+        title="Create / Schedule New Auction Round"
+        maxWidth="md"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newAuctionGroupId) {
+              setCreateError('Please select a Chit Group');
+              return;
+            }
+            createAuctionMutation.mutate({
+              chitGroupId: newAuctionGroupId,
+              monthNumber: Number(newAuctionMonth),
+              startImmediately: newAuctionStartNow,
+              maxParticipants: Number(newAuctionMaxParticipants),
+            });
+          }}
+          className="space-y-4"
+        >
+          {createError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+              {createError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+              Select Chit Group *
+            </label>
+            <select
+              value={newAuctionGroupId}
+              onChange={(e) => {
+                setNewAuctionGroupId(e.target.value);
+                const grp = groupsData?.find((g) => g.id === e.target.value);
+                if (grp) {
+                  setNewAuctionMonth(grp.current_month || 1);
+                }
+              }}
+              required
+              className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+            >
+              <option value="">-- Choose Active Chit Group --</option>
+              {groupsData?.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name} (₹{(g.chit_amount || 0).toLocaleString()} • Month {g.current_month || 1}/{g.duration_months || 20})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Auction Month Number *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={newAuctionMonth}
+                onChange={(e) => setNewAuctionMonth(Number(e.target.value))}
+                required
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Max Participant Limit *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={newAuctionMaxParticipants}
+                onChange={(e) => setNewAuctionMaxParticipants(Number(e.target.value))}
+                required
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+            <div>
+              <span className="block text-xs font-bold text-stone-900 dark:text-stone-100">
+                Start Live Immediately
+              </span>
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                Moves status directly to LIVE and alerts connected subscribers
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={newAuctionStartNow}
+              onChange={(e) => setNewAuctionStartNow(e.target.checked)}
+              className="w-4 h-4 text-gold-500 rounded focus:ring-gold-500 cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-maroon-900/50">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setCreateError('');
+              }}
+              className="px-3.5 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/30 rounded-xl transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createAuctionMutation.isPending}
+              className="px-4 py-2 text-xs font-bold bg-gold-500 hover:bg-gold-400 text-stone-950 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              {createAuctionMutation.isPending ? 'Creating...' : newAuctionStartNow ? 'Create & Start Live' : 'Schedule Auction'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>);
 };
 

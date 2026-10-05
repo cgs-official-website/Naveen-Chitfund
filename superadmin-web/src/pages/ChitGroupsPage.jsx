@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Layers, Eye, Users, Gavel, BookOpen } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Layers, Eye, Users, Gavel, BookOpen, Plus } from 'lucide-react';
 import { api } from '../api/client';
 import { DataTable } from '../components/common/DataTable';
 import { FilterBar } from '../components/common/FilterBar';
@@ -9,12 +9,24 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { CurrencyText } from '../components/common/CurrencyText';
 import { Modal } from '../components/common/Modal';
 export const ChitGroupsPage = () => {
+    const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [selectedGroupId, setSelectedGroupId] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [createError, setCreateError] = useState('');
+    const [newGroupForm, setNewGroupForm] = useState({
+        name: '',
+        chitAmount: 100000,
+        durationMonths: 20,
+        foremanCommissionPct: 5,
+        psoNumber: '',
+        fdrNumber: '',
+        dividendDistributionPolicy: 'NON_PRIZED_ONLY',
+    });
     const { data, isLoading } = useQuery({
         queryKey: ['superadmin-chit-groups', page, pageSize, search, statusFilter],
         queryFn: async () => {
@@ -33,6 +45,30 @@ export const ChitGroupsPage = () => {
             return res.data.data;
         },
         enabled: Boolean(selectedGroupId),
+    });
+
+    const createChitGroupMutation = useMutation({
+        mutationFn: async (payload) => {
+            const res = await api.post('/api/v1/superadmin/chit-groups', payload);
+            return res.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-chit-groups'] });
+            setIsCreateModalOpen(false);
+            setCreateError('');
+            setNewGroupForm({
+                name: '',
+                chitAmount: 100000,
+                durationMonths: 20,
+                foremanCommissionPct: 5,
+                psoNumber: '',
+                fdrNumber: '',
+                dividendDistributionPolicy: 'NON_PRIZED_ONLY',
+            });
+        },
+        onError: (err) => {
+            setCreateError(err.response?.data?.error || err.message || 'Failed to create chit group');
+        },
     });
     const columns = [
         {
@@ -91,6 +127,15 @@ export const ChitGroupsPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setIsCreateModalOpen(true);
+              setCreateError('');
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gold-500 hover:bg-gold-400 text-stone-950 transition cursor-pointer shadow-sm"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" /> Create Chit Group
+          </button>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
             Govt Sanctioned ROSCA Pools
           </span>
@@ -248,6 +293,180 @@ export const ChitGroupsPage = () => {
                   </div>))}
               </div>)}
           </div>)}
+      </Modal>
+
+      {/* Create Chit Group Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateError('');
+        }}
+        title="Sanction & Register New Chit Group"
+        maxWidth="lg"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createChitGroupMutation.mutate({
+              name: newGroupForm.name,
+              chitAmount: Number(newGroupForm.chitAmount),
+              durationMonths: Number(newGroupForm.durationMonths),
+              foremanCommissionPct: Number(newGroupForm.foremanCommissionPct),
+              psoNumber: newGroupForm.psoNumber || undefined,
+              fdrNumber: newGroupForm.fdrNumber || undefined,
+              dividendDistributionPolicy: newGroupForm.dividendDistributionPolicy,
+            });
+          }}
+          className="space-y-4"
+        >
+          {createError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+              {createError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+              Chit Group Name *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Kaveri Premium 2L or Godavari 5L"
+              value={newGroupForm.name}
+              onChange={(e) => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
+              className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Chit Value (₹) *
+              </label>
+              <input
+                type="number"
+                min="10000"
+                step="5000"
+                required
+                value={newGroupForm.chitAmount}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, chitAmount: Number(e.target.value) })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Tenure / Duration (Months) *
+              </label>
+              <input
+                type="number"
+                min="2"
+                max="120"
+                required
+                value={newGroupForm.durationMonths}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, durationMonths: Number(e.target.value) })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Foreman Commission (%) *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="7"
+                step="0.5"
+                required
+                value={newGroupForm.foremanCommissionPct}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, foremanCommissionPct: Number(e.target.value) })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Dividend Policy
+              </label>
+              <select
+                value={newGroupForm.dividendDistributionPolicy}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, dividendDistributionPolicy: e.target.value })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              >
+                <option value="NON_PRIZED_ONLY">Non-Prized Subscribers Only (Statutory)</option>
+                <option value="ALL_SUBSCRIBERS">All Subscribers</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Prior Sanction Order (PSO #)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. PSO/CHN/2026/044"
+                value={newGroupForm.psoNumber}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, psoNumber: e.target.value })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Bank Guarantee / FDR #
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. FDR-SBI-993821"
+                value={newGroupForm.fdrNumber}
+                onChange={(e) => setNewGroupForm({ ...newGroupForm, fdrNumber: e.target.value })}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-stone-50 dark:bg-[#1A0B14] border border-stone-200/90 dark:border-maroon-900/40 text-xs text-stone-500 dark:text-stone-400 space-y-1">
+            <div className="flex justify-between">
+              <span>Monthly Installment per Ticket:</span>
+              <span className="font-bold text-stone-900 dark:text-stone-100">
+                ₹{newGroupForm.durationMonths > 0 ? Math.round(newGroupForm.chitAmount / newGroupForm.durationMonths).toLocaleString() : 0}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Foreman Security Commission:</span>
+              <span className="font-bold text-gold-600 dark:text-gold-400">
+                {newGroupForm.foremanCommissionPct}%
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-maroon-900/50">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setCreateError('');
+              }}
+              className="px-3.5 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/30 rounded-xl transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createChitGroupMutation.isPending}
+              className="px-4 py-2 text-xs font-bold bg-gold-500 hover:bg-gold-400 text-stone-950 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              {createChitGroupMutation.isPending ? 'Sanctioning...' : 'Sanction & Create Group'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>);
 };

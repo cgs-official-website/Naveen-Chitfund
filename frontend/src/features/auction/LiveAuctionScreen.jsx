@@ -49,7 +49,9 @@ export const LiveAuctionScreen = () => {
     currentAuction,
     activeTicket,
     activeTicketLoading,
+    applyForAuctionTicket,
     claimAuctionTicket,
+    fetchMyAuctionTicket,
     submitBid,
     applyIncomingBid,
     closeCurrentAuction,
@@ -78,15 +80,9 @@ export const LiveAuctionScreen = () => {
 
   useEffect(() => {
     if (currentAuction?.id) {
-      claimAuctionTicket(currentAuction.id).then((res) => {
-        if (!res.success) {
-          setTicketError(res.error);
-        } else {
-          setTicketError(null);
-        }
-      });
+      fetchMyAuctionTicket(currentAuction.id);
     }
-  }, [currentAuction?.id]);
+  }, [currentAuction?.id, fetchMyAuctionTicket]);
 
   useEffect(() => {
     if (currentAuction) {
@@ -105,8 +101,21 @@ export const LiveAuctionScreen = () => {
     const unsubscribe = subscribeSocketStatus((status) => {
       setSocketStatus(status);
     });
-    return () => unsubscribe();
-  }, []);
+
+    const s = getAuctionSocket();
+    const handleGlobalStart = () => {
+      fetchCurrentAuction();
+    };
+
+    s.on('auction_started', handleGlobalStart);
+    s.on('auction:started', handleGlobalStart);
+
+    return () => {
+      unsubscribe();
+      s.off('auction_started', handleGlobalStart);
+      s.off('auction:started', handleGlobalStart);
+    };
+  }, [fetchCurrentAuction]);
 
   useEffect(() => {
     if (!currentAuction?.id) return;
@@ -126,19 +135,43 @@ export const LiveAuctionScreen = () => {
       }
     };
 
+    const handleStartEvent = () => {
+      fetchCurrentAuction();
+      fetchAuctionState(currentAuction.id);
+    };
+
+    const handleTicketApproved = (data) => {
+      if (data && data.auctionId === currentAuction.id) {
+        fetchMyAuctionTicket(currentAuction.id);
+      }
+    };
+    const handleTicketRejected = (data) => {
+      if (data && data.auctionId === currentAuction.id) {
+        fetchMyAuctionTicket(currentAuction.id);
+      }
+    };
+
     s.on('bid_placed', handleBidEvent);
     s.on('auction:bid', handleBidEvent);
     s.on('auction_closed', handleCloseEvent);
     s.on('auction:closed', handleCloseEvent);
+    s.on('auction_started', handleStartEvent);
+    s.on('auction:started', handleStartEvent);
+    s.on('auction:ticket_approved', handleTicketApproved);
+    s.on('auction:ticket_rejected', handleTicketRejected);
 
     return () => {
       s.off('bid_placed', handleBidEvent);
       s.off('auction:bid', handleBidEvent);
       s.off('auction_closed', handleCloseEvent);
       s.off('auction:closed', handleCloseEvent);
+      s.off('auction_started', handleStartEvent);
+      s.off('auction:started', handleStartEvent);
+      s.off('auction:ticket_approved', handleTicketApproved);
+      s.off('auction:ticket_rejected', handleTicketRejected);
       leaveAuctionRoom(currentAuction.id);
     };
-  }, [currentAuction?.id]);
+  }, [currentAuction?.id, fetchMyAuctionTicket]);
 
   useEffect(() => {
     if (currentAuction?.current_lowest_bid_pct !== undefined) {
@@ -272,29 +305,72 @@ export const LiveAuctionScreen = () => {
           </View>
         </View>
 
-        {/* Active Ticket Status Badge */}
-        {activeTicket ? (
+        {/* Active Ticket Status Badge / Application Banner */}
+        {activeTicket?.status === 'ACTIVE' ? (
           <View style={{ marginHorizontal: 16, marginTop: 10, padding: 8, borderRadius: 10, backgroundColor: 'rgba(212, 175, 55, 0.12)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <ShieldCheck size={14} color="#D4AF37" />
               <Text style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37', marginLeft: 6 }}>
-                Active Ticket: {activeTicket.ticket_code}
+                Active Bidding Ticket: {activeTicket.ticket_code}
               </Text>
             </View>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#10B981', textTransform: 'uppercase' }}>
-              {activeTicket.status}
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981', textTransform: 'uppercase' }}>
+              AUTHORIZED
             </Text>
           </View>
-        ) : ticketError ? (
-          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 8, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.35)' }}>
+        ) : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING' ? (
+          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(245, 158, 11, 0.12)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)', flexDirection: 'row', alignItems: 'center' }}>
+            <Clock size={16} color="#F59E0B" />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#F59E0B' }}>
+                Application Under Review by Superadmin
+              </Text>
+              <Text style={{ fontSize: 10, color: theme.text.secondary, marginTop: 2 }}>
+                Your request is submitted. Ticket & bidding access will unlock automatically upon Foreman approval.
+              </Text>
+            </View>
+          </View>
+        ) : activeTicket?.status === 'REJECTED' ? (
+          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#EF4444' }}>
+              ⛔ Participation Access Denied
+            </Text>
+            <Text style={{ fontSize: 10, color: theme.text.secondary, marginTop: 2 }}>
+              {activeTicket.revocation_reason || 'Application was not approved for this auction session.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.08)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#D4AF37' }}>
+                Auction Participation Permit Required
+              </Text>
+              <Text style={{ fontSize: 10, color: theme.text.secondary, marginTop: 1 }}>
+                Submit an application to receive an authorized bidding ticket.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={async () => {
+                setTicketError(null);
+                const res = await applyForAuctionTicket(currentAuction.id);
+                if (!res.success) {
+                  Alert.alert('Application Failed', res.error || 'Could not apply');
+                }
+              }}
+              disabled={activeTicketLoading}
+              style={{ backgroundColor: '#D4AF37', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#1B0813' }}>
+                {activeTicketLoading ? 'Applying...' : 'Apply Now'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {ticketError ? (
+          <View style={{ marginHorizontal: 16, marginTop: 8, padding: 8, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.35)' }}>
             <Text style={{ fontSize: 11, fontWeight: '600', color: '#EF4444' }}>
               ⚠️ {ticketError}
-            </Text>
-          </View>
-        ) : activeTicketLoading ? (
-          <View style={{ marginHorizontal: 16, marginTop: 10 }}>
-            <Text style={{ fontSize: 10.5, color: '#D4AF37', textAlign: 'center' }}>
-              Verifying member eligibility & issuing ticket...
             </Text>
           </View>
         ) : null}
@@ -344,24 +420,42 @@ export const LiveAuctionScreen = () => {
       )}
 
       {!isAuctionClosed ? (
-        <View style={{ marginTop: 16 }}>
-          <ReverseBidSlider
-            currentLowestBidPct={currentAuction.current_lowest_bid_pct}
-            selectedBidPct={selectedBidPct}
-            onBidChange={setSelectedBidPct}
-            chitAmount={currentAuction.chit_amount}
-            totalSubscribers={currentAuction.total_subscribers}
-          />
+        activeTicket?.status === 'ACTIVE' ? (
+          <View style={{ marginTop: 16 }}>
+            <ReverseBidSlider
+              currentLowestBidPct={currentAuction.current_lowest_bid_pct}
+              selectedBidPct={selectedBidPct}
+              onBidChange={setSelectedBidPct}
+              chitAmount={currentAuction.chit_amount}
+              totalSubscribers={currentAuction.total_subscribers}
+            />
 
-          <Button
-            title={`Submit Bid of ${selectedBidPct.toFixed(1)}%`}
-            variant="primary"
-            icon={<Send size={18} color="#FFFFFF" />}
-            onPress={handlePlaceBid}
-            loading={isSubmitting}
-            style={{ marginTop: 16 }}
-          />
-        </View>
+            <Button
+              title={`Submit Bid of ${selectedBidPct.toFixed(1)}%`}
+              variant="primary"
+              icon={<Send size={18} color="#FFFFFF" />}
+              onPress={handlePlaceBid}
+              loading={isSubmitting}
+              style={{ marginTop: 16 }}
+            />
+          </View>
+        ) : (
+          <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
+            <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+              <ShieldCheck size={28} color="#D4AF37" />
+            </View>
+            <Text style={[typography.h3, { color: theme.text.primary, marginTop: 8, fontWeight: '700' }]}>
+              {activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                ? 'Awaiting Superadmin Authorization'
+                : 'Ticket Required to Place Bids'}
+            </Text>
+            <Text style={[typography.caption, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, lineHeight: 18, maxWidth: 300 }]}>
+              {activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                ? 'Your ticket application is pending Foreman verification. Bidding sliders will unlock as soon as your access is approved.'
+                : 'Under platform security protocol, only subscribers approved by the Superadmin are granted bidding access.'}
+            </Text>
+          </Card>
+        )
       ) : (
         <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
           <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.18)' }]}>

@@ -6,11 +6,13 @@ import { asyncHandler, ApiError } from '../../middleware/errorHandler.js';
 import { requireSuperAdmin } from '../../middleware/superadminAuth.js';
 import { validateBody, getPagination } from '../../utils/validate.js';
 import { calculateDividend, toRupees } from '../../services/dividend.js';
-import { broadcastClose } from '../../sockets/auctionSocket.js';
+import { broadcastClose, broadcastStart } from '../../sockets/auctionSocket.js';
 import { toPaise } from '../../utils/money.js';
 import {
   expireAuctionTickets,
   revokeTicket,
+  approveAuctionTicket,
+  rejectAuctionTicket,
 } from '../../services/ticketService.js';
 
 const router = express.Router();
@@ -21,6 +23,18 @@ const forceCloseSchema = z.object({
 
 const revokeTicketSchema = z.object({
   reason: z.string().min(3, 'Revocation reason is required'),
+});
+
+const rejectApplicationSchema = z.object({
+  reason: z.string().min(3, 'Rejection reason is required').optional(),
+});
+
+const createAuctionSchema = z.object({
+  chitGroupId: z.string().uuid('Valid Chit Group ID is required'),
+  monthNumber: z.number().int().positive('Month number must be positive'),
+  scheduledAt: z.string().optional(),
+  startImmediately: z.boolean().optional(),
+  maxParticipants: z.number().int().positive().optional().default(20),
 });
 
 // GET /api/v1/superadmin/auctions
@@ -222,6 +236,107 @@ router.post(
   })
 );
 
+// POST /api/v1/superadmin/auctions/:id/tickets/:ticketId/approve (Approve an applied ticket)
+router.post(
+  '/:id/tickets/:ticketId/approve',
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const { id, ticketId } = req.params;
+
+    const approvedTicket = await approveAuctionTicket(
+      { query },
+      ticketId,
+      req.superAdmin.id
+    );
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_TICKET_APPROVED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'auction_tickets',
+      entityId: ticketId,
+      metadata: { auctionId: id, ticketCode: approvedTicket.ticket_code },
+      ipAddress: req.ip,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`auction:${id}`).emit('auction:ticket_approved', {
+        auctionId: id,
+        ticketId,
+        ticketCode: approvedTicket.ticket_code,
+        userId: approvedTicket.user_id,
+        status: 'ACTIVE',
+      });
+      io.emit('auction:ticket_approved', {
+        auctionId: id,
+        ticketId,
+        ticketCode: approvedTicket.ticket_code,
+        userId: approvedTicket.user_id,
+        status: 'ACTIVE',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ticket approved successfully. User can now access live auction.',
+      data: approvedTicket,
+    });
+  })
+);
+
+// POST /api/v1/superadmin/auctions/:id/tickets/:ticketId/reject (Reject an applied ticket)
+router.post(
+  '/:id/tickets/:ticketId/reject',
+  requireSuperAdmin,
+  validateBody(rejectApplicationSchema),
+  asyncHandler(async (req, res) => {
+    const { id, ticketId } = req.params;
+    const { reason } = req.body;
+
+    const rejectedTicket = await rejectAuctionTicket(
+      { query },
+      ticketId,
+      reason,
+      req.superAdmin.id
+    );
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_TICKET_REJECTED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'auction_tickets',
+      entityId: ticketId,
+      metadata: { auctionId: id, reason },
+      ipAddress: req.ip,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`auction:${id}`).emit('auction:ticket_rejected', {
+        auctionId: id,
+        ticketId,
+        userId: rejectedTicket.user_id,
+        reason,
+        status: 'REJECTED',
+      });
+      io.emit('auction:ticket_rejected', {
+        auctionId: id,
+        ticketId,
+        userId: rejectedTicket.user_id,
+        reason,
+        status: 'REJECTED',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Ticket application rejected.',
+      data: rejectedTicket,
+    });
+  })
+);
+
 // POST /api/v1/superadmin/auctions/:id/force-close
 router.post(
   '/:id/force-close',
@@ -401,4 +516,160 @@ router.post(
   })
 );
 
+// POST /api/v1/superadmin/auctions (Create / Schedule a new auction round)
+router.post(
+  '/',
+  requireSuperAdmin,
+  validateBody(createAuctionSchema),
+  asyncHandler(async (req, res) => {
+    const { chitGroupId, monthNumber, scheduledAt, startImmediately, maxParticipants } = req.body;
+
+    const groupRes = await query('SELECT * FROM chit_groups WHERE id = $1', [chitGroupId]);
+    if (!groupRes.rows.length) throw new ApiError(404, 'Chit group not found');
+    const group = groupRes.rows[0];
+
+    // Check if an auction already exists for this group and month
+    const existing = await query(
+      'SELECT id, status FROM chit_auctions WHERE chit_group_id = $1 AND month_number = $2',
+      [chitGroupId, monthNumber]
+    );
+    if (existing.rows.length) {
+      throw new ApiError(400, `Auction for Month #${monthNumber} already exists (${existing.rows[0].status})`);
+    }
+
+    const initialStatus = startImmediately ? 'LIVE' : 'SCHEDULED';
+    const scheduledDate = scheduledAt || new Date().toISOString();
+    const limitCount = maxParticipants || group.duration_months || 20;
+
+    const { rows } = await query(
+      `INSERT INTO chit_auctions (chit_group_id, month_number, status, scheduled_at, max_participants)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [chitGroupId, monthNumber, initialStatus, scheduledDate, limitCount]
+    );
+
+    const newAuction = rows[0];
+
+    if (startImmediately) {
+      const minCommission = Number(group.foreman_commission_pct || 5);
+      await redis.set(
+        auctionKey(newAuction.id),
+        JSON.stringify({
+          lowestBidPct: null,
+          highestBidPct: null,
+          minBidPct: minCommission,
+          bidderSubscriptionId: null,
+          updatedAt: Date.now(),
+        })
+      );
+      await redis.del(auctionBidsKey(newAuction.id));
+
+      const io = req.app.get('io');
+      if (io) {
+        broadcastStart(io, newAuction.id, {
+          auction: newAuction,
+          chitGroupId,
+          monthNumber,
+          groupName: group.name,
+          chitAmount: group.chit_amount,
+          maxParticipants: limitCount,
+        });
+      }
+    }
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_CREATED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'chit_auctions',
+      entityId: newAuction.id,
+      metadata: { chitGroupId, monthNumber, status: initialStatus, maxParticipants: limitCount },
+      ipAddress: req.ip,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: startImmediately ? 'Live auction created and started successfully' : 'Auction scheduled successfully',
+      data: {
+        ...newAuction,
+        group_name: group.name,
+        chit_amount: group.chit_amount,
+      },
+    });
+  })
+);
+
+// POST /api/v1/superadmin/auctions/:id/start (Start a scheduled auction into LIVE)
+router.post(
+  '/:id/start',
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const auctionRes = await query(
+      `SELECT ca.*, cg.name AS group_name, cg.foreman_commission_pct, cg.chit_amount
+       FROM chit_auctions ca
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       WHERE ca.id = $1`,
+      [id]
+    );
+    if (!auctionRes.rows.length) throw new ApiError(404, 'Auction not found');
+    const auction = auctionRes.rows[0];
+
+    if (auction.status === 'LIVE') {
+      return res.json({ success: true, message: 'Auction is already live', data: auction });
+    }
+    if (auction.status === 'COMPLETED') {
+      throw new ApiError(400, 'Cannot restart a completed auction');
+    }
+
+    const { rows } = await query(
+      `UPDATE chit_auctions SET status = 'LIVE' WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    const updated = rows[0];
+
+    const minCommission = Number(auction.foreman_commission_pct || 5);
+    await redis.set(
+      auctionKey(id),
+      JSON.stringify({
+        lowestBidPct: null,
+        highestBidPct: null,
+        minBidPct: minCommission,
+        bidderSubscriptionId: null,
+        updatedAt: Date.now(),
+      })
+    );
+    await redis.del(auctionBidsKey(id));
+
+    const io = req.app.get('io');
+    if (io) {
+      broadcastStart(io, id, {
+        auction: updated,
+        chitGroupId: auction.chit_group_id,
+        monthNumber: auction.month_number,
+        groupName: auction.group_name,
+        chitAmount: auction.chit_amount,
+      });
+    }
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_STARTED',
+      actorId: req.superAdmin.id,
+      actorType: 'SUPERADMIN',
+      entityType: 'chit_auctions',
+      entityId: id,
+      metadata: { monthNumber: auction.month_number },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      message: 'Auction is now LIVE',
+      data: { ...updated, group_name: auction.group_name, chit_amount: auction.chit_amount },
+    });
+  })
+);
+
 export default router;
+
