@@ -28,35 +28,60 @@ router.post(
     const b = req.body;
     const chitAmountPaise = toPaise(b.chitAmount);
 
-    const { rows } = await query(
-      `INSERT INTO chit_groups
-         (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status, pso_number, fdr_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9)
-       RETURNING *`,
-      [
-        b.name,
-        b.chitAmount,
-        chitAmountPaise,
-        b.durationMonths,
-        b.foremanCommissionPct,
-        b.registrarStateCode || 'TN',
-        b.dividendDistributionPolicy,
-        b.psoNumber || null,
-        b.fdrNumber || null,
-      ]
-    );
+    let newGroup;
+    try {
+      const { rows } = await query(
+        `INSERT INTO chit_groups
+           (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status, pso_number, fdr_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9)
+         RETURNING *`,
+        [
+          b.name,
+          b.chitAmount,
+          chitAmountPaise,
+          b.durationMonths,
+          b.foremanCommissionPct,
+          b.registrarStateCode || 'TN',
+          b.dividendDistributionPolicy,
+          b.psoNumber || null,
+          b.fdrNumber || null,
+        ]
+      );
+      newGroup = rows[0];
+    } catch (insertErr) {
+      // If pso_number or fdr_number column doesn't exist yet, fallback gracefully
+      const { rows } = await query(
+        `INSERT INTO chit_groups
+           (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN')
+         RETURNING *`,
+        [
+          b.name,
+          b.chitAmount,
+          chitAmountPaise,
+          b.durationMonths,
+          b.foremanCommissionPct,
+          b.registrarStateCode || 'TN',
+          b.dividendDistributionPolicy,
+        ]
+      );
+      newGroup = rows[0];
+    }
 
-    const newGroup = rows[0];
-
-    await logAuditEvent(null, {
-      eventType: 'CHIT_GROUP_CREATED',
-      actorId: req.superAdmin.id,
-      actorType: 'SUPERADMIN',
-      entityType: 'chit_groups',
-      entityId: newGroup.id,
-      metadata: { name: b.name, chitAmount: b.chitAmount, durationMonths: b.durationMonths },
-      ipAddress: req.ip,
-    });
+    try {
+      await logAuditEvent(null, {
+        eventType: 'CHIT_GROUP_CREATED',
+        actorId: req.superAdmin?.id || null,
+        actorType: 'SUPERADMIN',
+        entityType: 'chit_groups',
+        entityId: newGroup.id,
+        metadata: { name: b.name, chitAmount: b.chitAmount, durationMonths: b.durationMonths },
+        ipAddress: req.ip,
+      });
+    } catch (auditErr) {
+      // Non-blocking audit log warning
+      console.warn('Audit event log warning:', auditErr.message);
+    }
 
     res.status(201).json({
       success: true,

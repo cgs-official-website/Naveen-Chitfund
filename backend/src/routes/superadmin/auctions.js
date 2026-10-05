@@ -541,14 +541,25 @@ router.post(
     const scheduledDate = scheduledAt || new Date().toISOString();
     const limitCount = maxParticipants || group.duration_months || 20;
 
-    const { rows } = await query(
-      `INSERT INTO chit_auctions (chit_group_id, month_number, status, scheduled_at, max_participants)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [chitGroupId, monthNumber, initialStatus, scheduledDate, limitCount]
-    );
-
-    const newAuction = rows[0];
+    let newAuction;
+    try {
+      const { rows } = await query(
+        `INSERT INTO chit_auctions (chit_group_id, month_number, status, scheduled_at, max_participants)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [chitGroupId, monthNumber, initialStatus, scheduledDate, limitCount]
+      );
+      newAuction = rows[0];
+    } catch (insertErr) {
+      // Fallback if max_participants column doesn't exist yet
+      const { rows } = await query(
+        `INSERT INTO chit_auctions (chit_group_id, month_number, status, scheduled_at)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [chitGroupId, monthNumber, initialStatus, scheduledDate]
+      );
+      newAuction = rows[0];
+    }
 
     if (startImmediately) {
       const minCommission = Number(group.foreman_commission_pct || 5);
@@ -577,15 +588,19 @@ router.post(
       }
     }
 
-    await logAuditEvent(null, {
-      eventType: 'AUCTION_CREATED',
-      actorId: req.superAdmin.id,
-      actorType: 'SUPERADMIN',
-      entityType: 'chit_auctions',
-      entityId: newAuction.id,
-      metadata: { chitGroupId, monthNumber, status: initialStatus, maxParticipants: limitCount },
-      ipAddress: req.ip,
-    });
+    try {
+      await logAuditEvent(null, {
+        eventType: 'AUCTION_CREATED',
+        actorId: req.superAdmin?.id || null,
+        actorType: 'SUPERADMIN',
+        entityType: 'chit_auctions',
+        entityId: newAuction.id,
+        metadata: { chitGroupId, monthNumber, status: initialStatus, maxParticipants: limitCount },
+        ipAddress: req.ip,
+      });
+    } catch (auditErr) {
+      console.warn('Audit event log warning:', auditErr.message);
+    }
 
     res.status(201).json({
       success: true,

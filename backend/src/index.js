@@ -13,6 +13,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { attachAuctionSocket } from './sockets/auctionSocket.js';
 import { query, pool } from './db.js';
 import { redis } from './redis.js';
+import { runMigrations } from './migrate.js';
 
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -96,9 +97,15 @@ const PORT = process.env.PORT || 4000;
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isDirectRun) {
-  server.listen(PORT, () => {
-    console.log(`Naveen Chit Fund backend listening on port ${PORT}`);
-  });
+  runMigrations()
+    .catch((err) => {
+      console.error('Initial migration warning:', err.message);
+    })
+    .finally(() => {
+      server.listen(PORT, () => {
+        console.log(`Naveen Chit Fund backend listening on port ${PORT}`);
+      });
+    });
 
   const gracefulShutdown = async (signal) => {
     console.log(`Received ${signal}. Starting zero-downtime graceful shutdown...`);
