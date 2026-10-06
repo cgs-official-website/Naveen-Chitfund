@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { useAppStore } from '../../store/useAppStore';
@@ -8,20 +8,34 @@ import {
   DollarSign,
   AlertCircle,
   FileCheck,
+  ShieldCheck,
+  CreditCard,
 } from 'lucide-react-native';
 
 export const NotificationsScreen = () => {
   const { theme, typography } = useTheme();
-  const { user, activeChits, currentAuction, activePrizeClaim } = useAppStore();
+  const {
+    user,
+    activeChits,
+    currentAuction,
+    activePrizeClaim,
+    serverNotifications,
+    fetchServerNotifications,
+    markNotificationAsRead,
+  } = useAppStore();
+
+  useEffect(() => {
+    fetchServerNotifications();
+  }, []);
 
   const isForeman = user?.role === 'admin';
 
   // Dynamically derive notifications from real system and subscriber state
-  const notifications = [];
+  const dynamicNotifications = [];
 
   // 1. Live/Scheduled Auction Alert
   if (currentAuction) {
-    notifications.push({
+    dynamicNotifications.push({
       id: `notif-auc-${currentAuction.id}`,
       type: 'AUCTION',
       title: currentAuction.status === 'IN_PROGRESS' ? 'Live Reverse Auction in Progress' : 'Monthly Auction Scheduled',
@@ -36,7 +50,7 @@ export const NotificationsScreen = () => {
   if (activeChits && activeChits.length > 0) {
     const dueChit = activeChits.find((c) => c.installments_paid < c.total_installments);
     if (dueChit) {
-      notifications.push({
+      dynamicNotifications.push({
         id: `notif-inst-${dueChit.id}`,
         type: 'PAYMENT',
         title: 'Monthly Installment Due',
@@ -50,7 +64,7 @@ export const NotificationsScreen = () => {
     // 3. Dividend notification
     const totalDiv = activeChits.reduce((acc, c) => acc + (c.total_dividend_earned || 0), 0);
     if (totalDiv > 0) {
-      notifications.push({
+      dynamicNotifications.push({
         id: 'notif-div-earned',
         type: 'DIVIDEND',
         title: 'Statutory Dividend Credited',
@@ -64,7 +78,7 @@ export const NotificationsScreen = () => {
 
   // 4. Prize Claim / Surety Alert
   if (activePrizeClaim) {
-    notifications.push({
+    dynamicNotifications.push({
       id: 'notif-surety-claim',
       type: 'REGISTRAR',
       title: 'Prize Disbursal & Surety Review',
@@ -77,7 +91,7 @@ export const NotificationsScreen = () => {
 
   // 5. KYC Status Nudge
   if (user && user.kyc_status !== 'VERIFIED') {
-    notifications.push({
+    dynamicNotifications.push({
       id: 'notif-kyc-nudge',
       type: 'REGISTRAR',
       title: 'Complete Your DPDP & PMLA KYC',
@@ -90,7 +104,7 @@ export const NotificationsScreen = () => {
 
   // 6. Foreman specific statutory reminders
   if (isForeman) {
-    notifications.push({
+    dynamicNotifications.push({
       id: 'notif-foreman-formxiv',
       type: 'REGISTRAR',
       title: 'Section 18 / Form XIV Regulatory Filing',
@@ -101,7 +115,24 @@ export const NotificationsScreen = () => {
     });
   }
 
-  const filteredNotifications = notifications.filter(
+  // Format server-dispatched push / in-app notifications
+  const mappedServerNotifications = (serverNotifications || []).map((s) => ({
+    id: s.id,
+    type: s.category || 'SYSTEM',
+    title: s.title,
+    body: s.body,
+    time: s.created_at ? new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent',
+    isUnread: !s.is_read,
+    foremanOnly: false,
+    isServerItem: true,
+  }));
+
+  const combinedNotifications = [
+    ...mappedServerNotifications,
+    ...dynamicNotifications.filter((d) => !mappedServerNotifications.some((s) => s.id === d.id)),
+  ];
+
+  const filteredNotifications = combinedNotifications.filter(
     (n) => !n.foremanOnly || isForeman
   );
 
@@ -140,32 +171,41 @@ export const NotificationsScreen = () => {
           };
 
           return (
-            <Card
+            <TouchableOpacity
               key={n.id}
-              style={[
-                styles.notifCard,
-                n.isUnread && {
-                  borderColor: theme.maroon.primary + '50',
-                  backgroundColor: theme.surface.cardSubtle,
-                },
-              ]}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (n.isServerItem && n.isUnread) {
+                  markNotificationAsRead(n.id);
+                }
+              }}
             >
-              <View style={styles.notifRow}>
-                <View style={styles.iconWrapper}>{getIcon()}</View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={styles.titleRow}>
-                    <Text style={[typography.h3, { color: theme.text.primary }]}>{n.title}</Text>
-                    {n.isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.maroon.primary }]} />}
+              <Card
+                style={[
+                  styles.notifCard,
+                  n.isUnread && {
+                    borderColor: theme.maroon.primary + '50',
+                    backgroundColor: theme.surface.cardSubtle,
+                  },
+                ]}
+              >
+                <View style={styles.notifRow}>
+                  <View style={styles.iconWrapper}>{getIcon()}</View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.titleRow}>
+                      <Text style={[typography.h3, { color: theme.text.primary }]}>{n.title}</Text>
+                      {n.isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.maroon.primary }]} />}
+                    </View>
+                    <Text style={[typography.bodySmall, { color: theme.text.secondary, marginTop: 3 }]}>
+                      {n.body}
+                    </Text>
+                    <Text style={[typography.caption, { color: theme.text.muted, marginTop: 6 }]}>
+                      {n.time} {n.foremanOnly ? '· Foreman Compliance Nudge' : ''}
+                    </Text>
                   </View>
-                  <Text style={[typography.bodySmall, { color: theme.text.secondary, marginTop: 3 }]}>
-                    {n.body}
-                  </Text>
-                  <Text style={[typography.caption, { color: theme.text.muted, marginTop: 6 }]}>
-                    {n.time} {n.foremanOnly ? '· Foreman Compliance Nudge' : ''}
-                  </Text>
                 </View>
-              </View>
-            </Card>
+              </Card>
+            </TouchableOpacity>
           );
         })
       )}

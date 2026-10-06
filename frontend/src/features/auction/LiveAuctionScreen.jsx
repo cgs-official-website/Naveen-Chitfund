@@ -57,6 +57,7 @@ export const LiveAuctionScreen = () => {
     closeCurrentAuction,
     fetchAuctionState,
     fetchCurrentAuction,
+    activeChits,
     userAuctionHistory,
     userAuctionHistoryLoading,
     fetchUserAuctionHistory,
@@ -76,13 +77,15 @@ export const LiveAuctionScreen = () => {
 
   useEffect(() => {
     fetchCurrentAuction();
-  }, [fetchCurrentAuction]);
+    fetchUserAuctionHistory();
+  }, [fetchCurrentAuction, fetchUserAuctionHistory]);
 
   useEffect(() => {
     if (currentAuction?.id) {
       fetchMyAuctionTicket(currentAuction.id);
+      fetchUserAuctionHistory();
     }
-  }, [currentAuction?.id, fetchMyAuctionTicket]);
+  }, [currentAuction?.id, fetchMyAuctionTicket, fetchUserAuctionHistory]);
 
   useEffect(() => {
     if (currentAuction) {
@@ -141,13 +144,23 @@ export const LiveAuctionScreen = () => {
     };
 
     const handleTicketApproved = (data) => {
-      if (data && data.auctionId === currentAuction.id) {
+      if (data && (data.auctionId === currentAuction.id || !data.auctionId)) {
         fetchMyAuctionTicket(currentAuction.id);
+        fetchUserAuctionHistory();
+        Alert.alert(
+          'Auction Token Approved! 🎉',
+          `Your bidding token ${data.ticketCode || ''} has been approved by the Superadmin. You now have full access to participate in the live auction!`
+        );
       }
     };
     const handleTicketRejected = (data) => {
-      if (data && data.auctionId === currentAuction.id) {
+      if (data && (data.auctionId === currentAuction.id || !data.auctionId)) {
         fetchMyAuctionTicket(currentAuction.id);
+        fetchUserAuctionHistory();
+        Alert.alert(
+          'Token Application Denied',
+          'Your ticket application was not approved by the Superadmin for this auction.'
+        );
       }
     };
 
@@ -171,7 +184,7 @@ export const LiveAuctionScreen = () => {
       s.off('auction:ticket_rejected', handleTicketRejected);
       leaveAuctionRoom(currentAuction.id);
     };
-  }, [currentAuction?.id, fetchMyAuctionTicket]);
+  }, [currentAuction?.id, fetchMyAuctionTicket, fetchUserAuctionHistory]);
 
   useEffect(() => {
     if (currentAuction?.current_lowest_bid_pct !== undefined) {
@@ -191,6 +204,7 @@ export const LiveAuctionScreen = () => {
   }, []);
 
   if (!currentAuction && activeTab !== 'history') {
+    const enrolledGroup = activeChits?.[0];
     return (
       <ScrollView
         style={[styles.container, { backgroundColor: theme.surface.base }]}
@@ -221,23 +235,118 @@ export const LiveAuctionScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.emptyContainer, { backgroundColor: theme.surface.base }]}>
-          <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
-            <Gavel size={36} color="#D4AF37" />
-          </View>
-          <Text style={[typography.h2, { color: theme.text.primary, marginTop: 16, fontSize: 20 }]}>
-            No Live Auction in Progress
-          </Text>
-          <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 6, maxWidth: 300, lineHeight: 20 }]}>
-            Scheduled auctions open promptly on the 15th of every month at 05:30 PM for all registered group members.
-          </Text>
-          <View style={[styles.statutoryNotice, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
-            <ShieldCheck size={16} color="#D4AF37" />
-            <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8, flex: 1 }]}>
-              Section 14 of Chit Funds Act 1982: Maximum statutory discount is capped at 40%.
+        {enrolledGroup ? (
+          <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 10 }]}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+              <Gavel size={32} color="#D4AF37" />
+            </View>
+            <Text style={[typography.h2, { color: theme.text.primary, marginTop: 12, fontSize: 18, textAlign: 'center' }]}>
+              {enrolledGroup.chit_group_name}
             </Text>
+            <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, maxWidth: 320, lineHeight: 20 }]}>
+              Monthly Reverse Auction session opens on the 15th at 05:30 PM.
+            </Text>
+
+            {/* Token Status / Apply card */}
+            <View style={{ width: '100%', marginTop: 16 }}>
+              {activeTicket?.status === 'ACTIVE' ? (
+                <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(16, 185, 129, 0.12)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                    <ShieldCheck size={18} color="#10B981" />
+                    <View style={{ marginLeft: 8, flex: 1 }}>
+                      <Text numberOfLines={1} ellipsizeMode="middle" style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
+                        Token: {activeTicket.ticket_code}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: theme.text.secondary, marginTop: 1 }}>
+                        Ready for live bidding when auction starts.
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#10B981', textTransform: 'uppercase' }}>
+                      AUTHORIZED
+                    </Text>
+                  </View>
+                </View>
+              ) : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING' ? (
+                <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(245, 158, 11, 0.12)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Clock size={16} color="#F59E0B" />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#F59E0B', marginLeft: 6 }}>
+                      Application Under Review by Superadmin
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 10.5, color: theme.text.secondary, marginTop: 4, lineHeight: 16 }}>
+                    Your request has been dynamically sent to the Superadmin. Access and bidding dial will unlock immediately upon approval.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => fetchCurrentAuction()}
+                    style={{ alignSelf: 'flex-start', marginTop: 8, flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 8, backgroundColor: 'rgba(245, 158, 11, 0.2)', borderRadius: 6 }}
+                  >
+                    <RefreshCw size={12} color="#F59E0B" />
+                    <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#F59E0B', marginLeft: 4 }}>Check Approval Status</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ padding: 14, borderRadius: 12, backgroundColor: 'rgba(212, 175, 55, 0.08)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TicketIcon size={16} color="#D4AF37" />
+                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#D4AF37', marginLeft: 6 }}>
+                      Apply for Auction Participation Token
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 10.5, color: theme.text.secondary, marginTop: 4, lineHeight: 16 }}>
+                    In accordance with regulatory norms, an approved bidding token is required to bid in this month's reverse auction.
+                  </Text>
+                  <Button
+                    title={activeTicketLoading ? 'Submitting Application...' : 'Apply for Auction Token'}
+                    variant="primary"
+                    loading={activeTicketLoading}
+                    onPress={async () => {
+                      setTicketError(null);
+                      await fetchCurrentAuction();
+                      const current = useAppStore.getState().currentAuction;
+                      if (current?.id) {
+                        const res = await applyForAuctionTicket(current.id);
+                        if (!res.success) {
+                          Alert.alert('Application Failed', res.error || 'Could not submit token application');
+                        }
+                      } else {
+                        Alert.alert('Notice', 'Auction schedule is being synchronized with Foreman. Please retry in a moment.');
+                      }
+                    }}
+                    style={{ marginTop: 12 }}
+                  />
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.statutoryNotice, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border, marginTop: 16 }]}>
+              <ShieldCheck size={16} color="#D4AF37" />
+              <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8, flex: 1 }]}>
+                Section 14 of Chit Funds Act 1982: Maximum statutory discount is capped at 40%.
+              </Text>
+            </View>
+          </Card>
+        ) : (
+          <View style={[styles.emptyContainer, { backgroundColor: theme.surface.base }]}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+              <Gavel size={36} color="#D4AF37" />
+            </View>
+            <Text style={[typography.h2, { color: theme.text.primary, marginTop: 16, fontSize: 20 }]}>
+              No Live Auction in Progress
+            </Text>
+            <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 6, maxWidth: 300, lineHeight: 20 }]}>
+              Scheduled auctions open promptly on the 15th of every month at 05:30 PM for all registered group members.
+            </Text>
+            <View style={[styles.statutoryNotice, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+              <ShieldCheck size={16} color="#D4AF37" />
+              <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8, flex: 1 }]}>
+                Section 14 of Chit Funds Act 1982: Maximum statutory discount is capped at 40%.
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     );
   }
@@ -307,16 +416,23 @@ export const LiveAuctionScreen = () => {
 
         {/* Active Ticket Status Badge / Application Banner */}
         {activeTicket?.status === 'ACTIVE' ? (
-          <View style={{ marginHorizontal: 16, marginTop: 10, padding: 8, borderRadius: 10, backgroundColor: 'rgba(212, 175, 55, 0.12)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <ShieldCheck size={14} color="#D4AF37" />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37', marginLeft: 6 }}>
-                Active Bidding Ticket: {activeTicket.ticket_code}
+          <View style={{ marginHorizontal: 16, marginTop: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: 'rgba(212, 175, 55, 0.12)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+              <ShieldCheck size={15} color="#D4AF37" />
+              <View style={{ marginLeft: 6, flex: 1 }}>
+                <Text style={{ fontSize: 9.5, color: theme.text.secondary, textTransform: 'uppercase', fontWeight: '600', letterSpacing: 0.5 }}>
+                  Active Bidding Permit
+                </Text>
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37', marginTop: 1 }}>
+                  {activeTicket.ticket_code}
+                </Text>
+              </View>
+            </View>
+            <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.18)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 }}>
+                AUTHORIZED
               </Text>
             </View>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981', textTransform: 'uppercase' }}>
-              AUTHORIZED
-            </Text>
           </View>
         ) : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING' ? (
           <View style={{ marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: 'rgba(245, 158, 11, 0.12)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)', flexDirection: 'row', alignItems: 'center' }}>
@@ -578,6 +694,8 @@ export const LiveAuctionScreen = () => {
             const statusColor =
               item.ticket_status === 'ACTIVE'
                 ? '#10B981'
+                : item.ticket_status === 'APPLIED' || item.ticket_status === 'PENDING'
+                ? '#F59E0B'
                 : item.ticket_status === 'USED'
                 ? '#D4AF37'
                 : item.ticket_status === 'EXPIRED'

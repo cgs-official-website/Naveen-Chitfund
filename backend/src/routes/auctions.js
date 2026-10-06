@@ -15,6 +15,7 @@ import {
   validateTicketForBid,
   expireAuctionTickets,
 } from '../services/ticketService.js';
+import { sendGroupNotification } from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -76,6 +77,46 @@ router.get(
     res.json({
       success: true,
       data: paginatedResponse(rowsRes.rows, parseInt(countRes.rows[0].count, 10), page, limit),
+    });
+  })
+);
+
+// GET /api/v1/auctions/history/mine (auth'd user's past auctions and ticket history)
+router.get(
+  ['/auctions/history/mine', '/history/mine'],
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { page, limit, offset } = getPagination(req);
+    const userId = req.user.userId;
+
+    const countRes = await query(
+      `SELECT COUNT(*)::int AS count
+       FROM auction_tickets t
+       WHERE t.user_id = $1`,
+      [userId]
+    );
+    const total = countRes.rows[0]?.count || 0;
+
+    const { rows } = await query(
+      `SELECT t.id AS ticket_id, t.ticket_code, t.status AS ticket_status, t.issued_at,
+              ca.id AS auction_id, ca.month_number, ca.status AS auction_status,
+              ca.winning_bid_pct, ca.closed_at,
+              cg.name AS group_name, cg.chit_amount,
+              s.ticket_number,
+              (ca.winning_subscription_id = s.id) AS is_winner
+       FROM auction_tickets t
+       JOIN chit_auctions ca ON ca.id = t.auction_id
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       JOIN subscriptions s ON s.id = t.subscription_id
+       WHERE t.user_id = $1
+       ORDER BY t.issued_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      data: paginatedResponse(rows, total, page, limit),
     });
   })
 );
@@ -178,45 +219,7 @@ router.get(
   })
 );
 
-// GET /api/v1/auctions/history/mine (auth'd user's past auctions and ticket history)
-router.get(
-  '/history/mine',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const { page, limit, offset } = getPagination(req);
-    const userId = req.user.userId;
 
-    const countRes = await query(
-      `SELECT COUNT(*)::int AS count
-       FROM auction_tickets t
-       WHERE t.user_id = $1`,
-      [userId]
-    );
-    const total = countRes.rows[0]?.count || 0;
-
-    const { rows } = await query(
-      `SELECT t.id AS ticket_id, t.ticket_code, t.status AS ticket_status, t.issued_at,
-              ca.id AS auction_id, ca.month_number, ca.status AS auction_status,
-              ca.winning_bid_pct, ca.closed_at,
-              cg.name AS group_name, cg.chit_amount,
-              s.ticket_number,
-              (ca.winning_subscription_id = s.id) AS is_winner
-       FROM auction_tickets t
-       JOIN chit_auctions ca ON ca.id = t.auction_id
-       JOIN chit_groups cg ON cg.id = ca.chit_group_id
-       JOIN subscriptions s ON s.id = t.subscription_id
-       WHERE t.user_id = $1
-       ORDER BY t.issued_at DESC
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
-    );
-
-    res.json({
-      success: true,
-      data: paginatedResponse(rows, total, page, limit),
-    });
-  })
-);
 
 // POST /api/v1/auctions/:id/start  (admin) — moves to LIVE, seeds Redis state
 router.post(
@@ -247,6 +250,25 @@ router.post(
       })
     );
     await redis.del(auctionBidsKey(req.params.id));
+
+    // Notify all active subscribers in this chit group
+    try {
+      const chitGroupInfo = await query('SELECT name FROM chit_groups WHERE id = $1', [rows[0].chit_group_id]);
+      const groupName = chitGroupInfo.rows[0]?.name || 'Chit Group';
+      await sendGroupNotification({
+        chitGroupId: rows[0].chit_group_id,
+        title: `Live Reverse Auction: ${groupName}`,
+        body: `Reverse auction for ${groupName} (Month #${rows[0].month_number}) is now live! Submit your bids before the window closes.`,
+        category: 'AUCTION',
+        data: {
+          auctionId: rows[0].id,
+          monthNumber: rows[0].month_number,
+          chitGroupId: rows[0].chit_group_id,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to send auction start notifications:', e.message);
+    }
 
     res.json({ success: true, data: rows[0] });
   })

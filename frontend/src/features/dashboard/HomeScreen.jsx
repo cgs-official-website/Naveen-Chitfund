@@ -45,6 +45,7 @@ export const HomeScreen = ({
     activeChitsLoading,
     fetchActiveChits,
     currentAuction,
+    activeTicket,
     fetchCurrentAuction,
     isOffline,
     lastSynced,
@@ -272,19 +273,36 @@ export const HomeScreen = ({
         </Card>
       )}
 
-      {/* Live Auction Banner */}
+      {/* Live / Scheduled Auction Banner */}
       {currentAuction && (
         <Card variant="elevated" style={[styles.auctionCard, { borderColor: theme.gold.accent }]}>
           <View style={styles.auctionHeader}>
-            <View style={[styles.liveChip, { backgroundColor: theme.semantic.errorBg }]}>
-              <View style={[styles.liveDot, { backgroundColor: theme.semantic.error }]} />
-              <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '700', fontSize: 10 }]}>
-                LIVE REVERSE AUCTION
+            <View style={[styles.liveChip, { backgroundColor: currentAuction.status === 'IN_PROGRESS' ? theme.semantic.errorBg : 'rgba(212, 175, 55, 0.15)' }]}>
+              {currentAuction.status === 'IN_PROGRESS' && (
+                <View style={[styles.liveDot, { backgroundColor: theme.semantic.error }]} />
+              )}
+              <Text style={[typography.caption, { color: currentAuction.status === 'IN_PROGRESS' ? theme.semantic.error : '#D4AF37', fontWeight: '700', fontSize: 10 }]}>
+                {currentAuction.status === 'IN_PROGRESS' ? 'LIVE REVERSE AUCTION' : 'UPCOMING AUCTION'}
               </Text>
             </View>
-            <Text style={[typography.caption, { color: theme.text.secondary }]}>
-              Month {currentAuction.month_number} of 20
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {activeTicket?.status === 'ACTIVE' ? (
+                <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 6 }}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#10B981' }}>TOKEN ACTIVE</Text>
+                </View>
+              ) : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING' ? (
+                <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 6 }}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#F59E0B' }}>APPROVAL PENDING</Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: 'rgba(212, 175, 55, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 6 }}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#D4AF37' }}>TOKEN REQUIRED</Text>
+                </View>
+              )}
+              <Text style={[typography.caption, { color: theme.text.secondary }]}>
+                Month {currentAuction.month_number}
+              </Text>
+            </View>
           </View>
 
           <Text style={[typography.h2, { color: theme.text.primary, marginTop: 10, fontSize: 17 }]}>
@@ -293,21 +311,35 @@ export const HomeScreen = ({
 
           <View style={styles.auctionDetailsRow}>
             <View>
-              <Text style={[typography.caption, { color: theme.text.secondary }]}>Current Best Bid</Text>
+              <Text style={[typography.caption, { color: theme.text.secondary }]}>
+                {currentAuction.status === 'IN_PROGRESS' ? 'Current Best Bid' : 'Base Chit Value'}
+              </Text>
               <Text style={[typography.numericLarge, { color: theme.maroon.primary, fontSize: 20 }]}>
-                {currentAuction.current_lowest_bid_pct.toFixed(1)}% Discount
+                {currentAuction.status === 'IN_PROGRESS'
+                  ? `${currentAuction.current_lowest_bid_pct.toFixed(1)}% Discount`
+                  : `₹${currentAuction.chit_amount.toLocaleString('en-IN')}`}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[typography.caption, { color: theme.text.secondary }]}>Subscribers in Room</Text>
+              <Text style={[typography.caption, { color: theme.text.secondary }]}>
+                {currentAuction.status === 'IN_PROGRESS' ? 'Subscribers in Room' : 'Total Subscribers'}
+              </Text>
               <Text style={[typography.numericMedium, { color: theme.text.primary, fontWeight: '700' }]}>
-                {currentAuction.present_subscribers} of {currentAuction.total_subscribers}
+                {currentAuction.status === 'IN_PROGRESS'
+                  ? `${currentAuction.present_subscribers} of ${currentAuction.total_subscribers}`
+                  : `${currentAuction.total_subscribers} Members`}
               </Text>
             </View>
           </View>
 
           <Button
-            title="Enter Live Auction Room"
+            title={
+              activeTicket?.status === 'ACTIVE'
+                ? 'Enter Live Auction Room'
+                : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                ? 'Check Ticket Status'
+                : 'Apply for Auction Token'
+            }
             variant="gold"
             icon={<Gavel size={18} color={theme.maroon.deep} />}
             onPress={onNavigateToAuction}

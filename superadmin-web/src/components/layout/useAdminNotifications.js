@@ -1,9 +1,30 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useNotificationStore } from '../../store/notificationStore';
 
 export const useAdminNotifications = () => {
   const { dismissedIds, dismissNotification, dismissByPath, dismissAll } = useNotificationStore();
+  const [browserPermission, setBrowserPermission] = useState(() => {
+    return typeof window !== 'undefined' && 'Notification' in window
+      ? Notification.permission
+      : 'unsupported';
+  });
+  const notifiedIdsRef = useRef(new Set());
+
+  const hasBrowserSupport = typeof window !== 'undefined' && 'Notification' in window;
+
+  const requestBrowserPermission = useCallback(async () => {
+    if (!hasBrowserSupport) return 'unsupported';
+    try {
+      const permission = await Notification.requestPermission();
+      setBrowserPermission(permission);
+      return permission;
+    } catch (err) {
+      console.warn('Error requesting notification permission:', err);
+      return 'denied';
+    }
+  }, [hasBrowserSupport]);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['superadmin-notifications-feed'],
@@ -32,6 +53,7 @@ export const useAdminNotifications = () => {
       type: 'warning',
       category: 'KYC',
       time: 'Action Required',
+      priority: 'high',
     });
   }
 
@@ -46,6 +68,7 @@ export const useAdminNotifications = () => {
       type: 'warning',
       category: 'Sureties',
       time: 'Action Required',
+      priority: 'high',
     });
   }
 
@@ -62,6 +85,7 @@ export const useAdminNotifications = () => {
       type: 'success',
       category: 'Auctions',
       time: 'Live',
+      priority: 'urgent',
     });
   }
 
@@ -98,8 +122,35 @@ export const useAdminNotifications = () => {
     (n) => !dismissedIds.includes(n.id)
   );
 
+  // Trigger browser desktop notification when new high/urgent alert appears
+  useEffect(() => {
+    if (browserPermission !== 'granted' || !hasBrowserSupport) return;
+
+    activeNotifications.forEach((n) => {
+      // Fire browser notification only once per notification event cycle if not dismissed
+      if (['high', 'urgent'].includes(n.priority) && !notifiedIdsRef.current.has(n.id)) {
+        notifiedIdsRef.current.add(n.id);
+        try {
+          const notificationInstance = new Notification(n.title, {
+            body: n.description,
+            tag: n.id,
+            icon: '/vite.svg',
+          });
+          notificationInstance.onclick = () => {
+            window.focus();
+            if (n.path) {
+              window.location.hash = n.path;
+            }
+            notificationInstance.close();
+          };
+        } catch (e) {
+          console.error('Desktop notification trigger failed:', e);
+        }
+      }
+    });
+  }, [activeNotifications, browserPermission, hasBrowserSupport]);
+
   // Group unread counts by navigation path for the sidebar badge
-  // When a user clicks a sidebar item or notification, the badge disappears
   const countsByPath = {};
   activeNotifications.forEach((n) => {
     if (n.path && !dismissedIds.includes(n.path) && !dismissedIds.includes(n.id)) {
@@ -115,6 +166,9 @@ export const useAdminNotifications = () => {
     notifications: activeNotifications,
     totalUnreadCount,
     countsByPath,
+    browserPermission,
+    requestBrowserPermission,
+    hasBrowserSupport,
     dismissNotification,
     dismissByPath,
     dismissAll: () => dismissAll(rawNotifications.map((n) => n.id)),

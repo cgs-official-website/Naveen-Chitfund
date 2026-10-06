@@ -34,6 +34,10 @@ export const ChitDetailScreen = ({
     activeChits,
     joinChitGroup,
     user,
+    currentAuction,
+    activeTicket,
+    applyForAuctionTicket,
+    activeTicketLoading,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState('schedule');
@@ -208,13 +212,60 @@ export const ChitDetailScreen = ({
                 {mySub.installments_paid} / {mySub.total_installments} Paid
               </Text>
             </View>
-            <Button
-              title="Enter Live Auction Room"
-              size="sm"
-              variant="gold"
-              onPress={onNavigateToAuction}
-              style={{ marginTop: 10 }}
-            />
+
+            {/* Auction Bidding Token Permit Bar */}
+            <View style={{ marginTop: 10, padding: 8, borderRadius: 8, backgroundColor: 'rgba(212, 175, 55, 0.08)', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.25)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, paddingRight: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37' }}>
+                  {activeTicket?.status === 'ACTIVE'
+                    ? `Bidding Permit: ${activeTicket.ticket_code}`
+                    : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                    ? 'Bidding Permit: Approval Pending'
+                    : 'Auction Token Required'}
+                </Text>
+                <Text style={{ fontSize: 9.5, color: theme.text.secondary, marginTop: 1 }}>
+                  {activeTicket?.status === 'ACTIVE'
+                    ? 'Approved by Superadmin for live bidding.'
+                    : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                    ? 'Submitted to Superadmin. Unlocks upon approval.'
+                    : 'Apply now to qualify for this month’s reverse auction.'}
+                </Text>
+              </View>
+              {activeTicket?.status === 'ACTIVE' ? (
+                <Button
+                  title="Enter Auction"
+                  size="sm"
+                  variant="gold"
+                  onPress={onNavigateToAuction}
+                />
+              ) : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING' ? (
+                <Button
+                  title="View Status"
+                  size="sm"
+                  variant="outline"
+                  onPress={onNavigateToAuction}
+                />
+              ) : (
+                <Button
+                  title={activeTicketLoading ? 'Applying...' : 'Apply Token'}
+                  size="sm"
+                  variant="primary"
+                  loading={activeTicketLoading}
+                  onPress={async () => {
+                    if (currentAuction?.id) {
+                      const res = await applyForAuctionTicket(currentAuction.id);
+                      if (res.success) {
+                        Alert.alert('Applied Successfully', 'Application sent to Superadmin. Check the Auction room for live status.');
+                      } else {
+                        Alert.alert('Application Failed', res.error || 'Failed to submit application');
+                      }
+                    } else {
+                      onNavigateToAuction();
+                    }
+                  }}
+                />
+              )}
+            </View>
           </View>
         ) : (
           <Button

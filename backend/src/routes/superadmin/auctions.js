@@ -122,7 +122,7 @@ router.get(
        JOIN subscriptions s ON s.id = b.subscription_id
        JOIN users u ON u.id = s.user_id
        WHERE b.auction_id = $1
-       ORDER BY b.bid_pct DESC, b.created_at ASC`,
+       ORDER BY b.bid_pct DESC, b.bid_at ASC`,
       [id]
     );
 
@@ -371,7 +371,7 @@ router.post(
          FROM auction_bids b
          JOIN subscriptions s ON s.id = b.subscription_id
          WHERE b.auction_id = $1
-         ORDER BY b.bid_pct DESC, b.created_at ASC LIMIT 1`,
+         ORDER BY b.bid_pct DESC, b.bid_at ASC LIMIT 1`,
         [id]
       );
       if (topBidRes.rows.length) {

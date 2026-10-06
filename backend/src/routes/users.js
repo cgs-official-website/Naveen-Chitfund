@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
 import { validateBody, getPagination, paginatedResponse } from '../utils/validate.js';
+import { sendUserNotification } from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -138,6 +139,83 @@ router.post(
       [req.body.decision, req.params.id]
     );
     if (!rows.length) throw new ApiError(404, 'User not found');
+
+    // Trigger notification to the user
+    try {
+      const isApproved = req.body.decision === 'APPROVED';
+      await sendUserNotification({
+        userId: req.params.id,
+        title: isApproved ? 'KYC Verification Approved' : 'KYC Verification Update',
+        body: isApproved
+          ? 'Your identity verification is approved! You are now eligible to participate in live reverse auctions.'
+          : 'Your KYC submission requires revision. Please re-upload your verification documents.',
+        category: 'KYC',
+        data: { decision: req.body.decision },
+      });
+    } catch (e) {
+      console.error('Failed to dispatch KYC notification:', e.message);
+    }
+
+    res.json({ success: true, data: rows[0] });
+  })
+);
+
+// POST /api/v1/users/push-token - Register device push token for mobile notifications
+router.post(
+  '/push-token',
+  requireAuth,
+  validateBody(
+    z.object({
+      token: z.string().min(5),
+      platform: z.string().default('expo'),
+      deviceInfo: z.record(z.any()).optional(),
+    })
+  ),
+  asyncHandler(async (req, res) => {
+    const { token, platform, deviceInfo } = req.body;
+    const userId = req.user.userId;
+
+    await query(
+      `INSERT INTO user_push_tokens (user_id, token, platform, device_info, is_active, updated_at)
+       VALUES ($1, $2, $3, $4, true, now())
+       ON CONFLICT (user_id, token)
+       DO UPDATE SET is_active = true, updated_at = now(), device_info = EXCLUDED.device_info`,
+      [userId, token, platform, JSON.stringify(deviceInfo || {})]
+    );
+
+    res.json({ success: true, message: 'Push token registered successfully' });
+  })
+);
+
+// GET /api/v1/users/notifications - Retrieve user notification feed
+router.get(
+  '/notifications',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const { rows } = await query(
+      `SELECT id, title, body, category, data, is_read, created_at
+       FROM notifications
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [userId]
+    );
+
+    res.json({ success: true, data: rows });
+  })
+);
+
+// PATCH /api/v1/users/notifications/:id/read - Mark notification as read
+router.patch(
+  '/notifications/:id/read',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { rows } = await query(
+      `UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 RETURNING id, is_read`,
+      [req.params.id, req.user.userId]
+    );
+    if (!rows.length) throw new ApiError(404, 'Notification not found');
     res.json({ success: true, data: rows[0] });
   })
 );

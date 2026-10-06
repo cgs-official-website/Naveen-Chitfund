@@ -284,10 +284,24 @@ interface AppState {
 
   availableGroupsLoading: boolean;
   activeChitsLoading: boolean;
+  pushToken: string | null;
+  serverNotifications: Array<{
+    id: string;
+    title: string;
+    body: string;
+    category: string;
+    data?: any;
+    is_read: boolean;
+    created_at: string;
+  }>;
+  serverNotificationsLoading: boolean;
 
   // Actions
   login: (user: User, token: string) => void;
   logout: () => void;
+  registerPushToken: (token: string, platform?: string) => Promise<void>;
+  fetchServerNotifications: () => Promise<void>;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
   applyForAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
   claimAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
   fetchMyAuctionTicket: (auctionId: string) => Promise<{ success: boolean; data?: AuctionTicket; error?: string }>;
@@ -407,6 +421,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   adminLedger: [],
   adminLedgerLoading: false,
   subscriptionInstallments: {},
+  pushToken: null,
+  serverNotifications: [],
+  serverNotificationsLoading: false,
   dpdpConsents: {
     identity_verification: false,
     credit_bureau_check: false,
@@ -416,7 +433,41 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   login: (user, token) => set({ user, token }),
-  logout: () => set({ user: null, token: null, activeChits: [], paymentHistory: [], activePrizeClaim: null }),
+  logout: () => set({ user: null, token: null, activeChits: [], paymentHistory: [], activePrizeClaim: null, serverNotifications: [] }),
+  registerPushToken: async (token: string, platform = 'expo') => {
+    try {
+      set({ pushToken: token });
+      await apiClient.post('/users/push-token', { token, platform });
+    } catch (err: any) {
+      console.warn('Failed to register push token with backend:', err.message);
+    }
+  },
+  fetchServerNotifications: async () => {
+    try {
+      set({ serverNotificationsLoading: true });
+      const res = await apiClient.get('/users/notifications');
+      if (res.data?.success) {
+        set({ serverNotifications: res.data.data || [], serverNotificationsLoading: false });
+      } else {
+        set({ serverNotificationsLoading: false });
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch notifications:', err.message);
+      set({ serverNotificationsLoading: false });
+    }
+  },
+  markNotificationAsRead: async (notificationId: string) => {
+    try {
+      set((state) => ({
+        serverNotifications: state.serverNotifications.map((n) =>
+          n.id === notificationId ? { ...n, is_read: true } : n
+        ),
+      }));
+      await apiClient.patch(`/users/notifications/${notificationId}/read`);
+    } catch (err: any) {
+      console.warn('Failed to mark notification as read:', err.message);
+    }
+  },
   switchRole: (role) =>
     set((state) => ({
       user: state.user ? { ...state.user, role } : null,
@@ -492,7 +543,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const res = await apiClient.get(`/chit-groups/${sub.chit_group_id}/auctions`);
           const auctions = res.data?.data?.items || [];
-          const liveAuction = auctions.find((a: any) => a.status === 'LIVE' || a.status === 'SCHEDULED');
+          // Prioritize LIVE first, then SCHEDULED
+          const liveAuction =
+            auctions.find((a: any) => a.status === 'LIVE') ||
+            auctions.find((a: any) => a.status === 'SCHEDULED');
           if (liveAuction) {
             const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
             const detail = detailRes.data?.data;
@@ -521,6 +575,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                   })),
                 },
               });
+              // Auto-fetch current user's ticket for this auction
+              get().fetchMyAuctionTicket(detail.id);
               return;
             }
           }
@@ -542,7 +598,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const res = await apiClient.get(`/chit-groups/${group.id}/auctions`);
           const auctions = res.data?.data?.items || [];
-          const liveAuction = auctions.find((a: any) => a.status === 'LIVE' || a.status === 'SCHEDULED');
+          const liveAuction =
+            auctions.find((a: any) => a.status === 'LIVE') ||
+            auctions.find((a: any) => a.status === 'SCHEDULED');
           if (liveAuction) {
             const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
             const detail = detailRes.data?.data;
@@ -571,6 +629,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                   })),
                 },
               });
+              // Auto-fetch current user's ticket for this auction
+              get().fetchMyAuctionTicket(detail.id);
               return;
             }
           }
@@ -579,8 +639,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
-      // No live auction found
-      set({ currentAuction: null });
+      // No live or scheduled auction found
+      set({ currentAuction: null, activeTicket: null });
     } catch (err: any) {
       console.warn('Failed to fetch current auction:', err.message);
     }
@@ -616,6 +676,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await apiClient.post(`/auctions/${auctionId}/apply`);
       const ticket: AuctionTicket = res.data?.data;
       set({ activeTicket: ticket, activeTicketLoading: false });
+      // Refresh user's enrolled chits and ticket state
+      get().fetchActiveChits();
       return { success: true, data: ticket };
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || 'Failed to apply for auction ticket';
@@ -652,7 +714,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchUserAuctionHistory: async () => {
     set({ userAuctionHistoryLoading: true });
     try {
-      const res = await apiClient.get('/auctions/history/mine');
+      let res;
+      try {
+        res = await apiClient.get('/history/mine');
+      } catch (err: any) {
+        res = await apiClient.get('/auctions/history/mine');
+      }
       const items: UserAuctionHistoryItem[] = res.data?.data?.items || res.data?.data || [];
       set({ userAuctionHistory: items, userAuctionHistoryLoading: false });
       return { success: true, data: items };
@@ -1135,6 +1202,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       tasks.push(state.fetchPaymentHistory());
       tasks.push(state.fetchUserProfile());
       tasks.push(state.fetchCurrentAuction());
+      tasks.push(state.fetchServerNotifications());
       if (state.user.role === 'admin') {
         tasks.push(state.fetchAdminDashboard());
         tasks.push(state.fetchPendingKyc());

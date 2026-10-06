@@ -1,9 +1,12 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 
-import { activeHost, resolveHost, PRODUCTION_BACKEND_URL } from './apiClient';
+import { activeHost, resolveHost, activeBaseUrl, PRODUCTION_BACKEND_URL } from './apiClient';
 
 export const getSocketUrl = (): string => {
+  if (activeBaseUrl) {
+    return activeBaseUrl.replace(/\/api\/v1\/?$/, '');
+  }
   if (!__DEV__) {
     return PRODUCTION_BACKEND_URL;
   }

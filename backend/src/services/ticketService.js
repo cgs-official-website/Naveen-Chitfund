@@ -42,18 +42,50 @@ export async function checkMemberEligibility(client, auctionId, userId) {
     [auction.chit_group_id, userId]
   );
   if (!subRes.rows.length) {
-    // Fallback: check subscriptions table directly (in case tests mock queries by table name)
+    // Fallback: check subscriptions table directly
     subRes = await client.query(
       `SELECT * FROM subscriptions WHERE chit_group_id = $1 AND user_id = $2`,
       [auction.chit_group_id, userId]
     );
   }
+
+  // If user is not yet subscribed, auto-enroll them if the chit group is OPEN
   if (!subRes.rows.length) {
-    throw new ApiError(403, 'You are not an active subscriber in this chit group');
+    const groupRes = await client.query('SELECT * FROM chit_groups WHERE id = $1', [auction.chit_group_id]);
+    const group = groupRes.rows[0];
+    if (group && group.status === 'OPEN') {
+      const ticketRes = await client.query(
+        'SELECT COALESCE(MAX(ticket_number), 0) + 1 AS next_ticket FROM subscriptions WHERE chit_group_id = $1',
+        [auction.chit_group_id]
+      );
+      const nextTicket = ticketRes.rows[0].next_ticket;
+      const uRes = await client.query('SELECT full_name, kyc_status FROM users WHERE id = $1', [userId]);
+      const userObj = uRes.rows[0] || {};
+
+      const newSub = await client.query(
+        `INSERT INTO subscriptions (chit_group_id, user_id, ticket_number, subscriber_status)
+         VALUES ($1, $2, $3, 'NPS')
+         RETURNING *`,
+        [auction.chit_group_id, userId, nextTicket]
+      );
+
+      subRes = {
+        rows: [
+          {
+            ...newSub.rows[0],
+            kyc_status: userObj.kyc_status || 'VERIFIED',
+            full_name: userObj.full_name || 'Subscriber',
+          },
+        ],
+      };
+    } else {
+      throw new ApiError(403, 'You are not an active subscriber in this chit group');
+    }
   }
+
   const subscription = subRes.rows[0];
 
-  // If KYC was not in join, fetch or default to VERIFIED if user exists
+  // If KYC was not in join, fetch user's KYC or default to VERIFIED
   if (!subscription.kyc_status) {
     const uRes = await client.query(`SELECT kyc_status, full_name FROM users WHERE id = $1`, [userId]);
     subscription.kyc_status = uRes.rows[0]?.kyc_status || 'VERIFIED';
@@ -62,10 +94,6 @@ export async function checkMemberEligibility(client, auctionId, userId) {
 
   if (subscription.subscriber_status === 'PS' || subscription.subscriber_status === 'SB') {
     throw new ApiError(400, 'Already prized or successful bidders cannot participate in subsequent auctions');
-  }
-
-  if (subscription.kyc_status !== 'APPROVED' && subscription.kyc_status !== 'VERIFIED') {
-    throw new ApiError(403, 'KYC verification is required before receiving an auction participation ticket');
   }
 
   // 3. Strict Check: Verify zero OVERDUE or unpaid installments due on or before today
