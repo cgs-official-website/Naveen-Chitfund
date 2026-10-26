@@ -140,11 +140,18 @@ export interface Auction {
   month_number: number;
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'CLOSED';
   scheduled_at: string;
+  started_at?: string | null;
+  closed_at?: string | null;
+  duration_seconds?: number;
   current_lowest_bid_pct: number;
   chit_amount: number;
   total_subscribers: number;
   present_subscribers: number;
   remaining_seconds: number;
+  starts_in_seconds?: number | null;
+  winner_name?: string | null;
+  winner_ticket_number?: number | null;
+  foreman_commission_pct?: number;
   bids: BidItem[];
 }
 
@@ -543,28 +550,63 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const res = await apiClient.get(`/chit-groups/${sub.chit_group_id}/auctions`);
           const auctions = res.data?.data?.items || [];
-          // Prioritize LIVE first, then SCHEDULED
+          // Prioritize LIVE first, then SCHEDULED, then recently COMPLETED
           const liveAuction =
             auctions.find((a: any) => a.status === 'LIVE') ||
-            auctions.find((a: any) => a.status === 'SCHEDULED');
+            auctions.find((a: any) => a.status === 'SCHEDULED') ||
+            auctions.find((a: any) => a.status === 'COMPLETED');
           if (liveAuction) {
             const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
             const detail = detailRes.data?.data;
             if (detail) {
               const bidsRes = detail.liveState?.bids || [];
+              const isLive = detail.status === 'LIVE';
+              const isCompleted = detail.status === 'COMPLETED';
+              const timing = detail.timing || {};
+
+              let remSeconds = 0;
+              if (isLive) {
+                if (timing.remainingSeconds !== undefined) {
+                  remSeconds = Number(timing.remainingSeconds);
+                } else if (detail.liveState?.remainingSeconds !== undefined) {
+                  remSeconds = Number(detail.liveState.remainingSeconds);
+                } else {
+                  const startedAt = detail.started_at || detail.liveState?.startedAt || detail.created_at;
+                  const dur = Number(detail.duration_seconds || detail.liveState?.durationSeconds || 300);
+                  if (startedAt) {
+                    const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+                    remSeconds = Math.max(0, dur - elapsed);
+                  } else {
+                    remSeconds = dur;
+                  }
+                }
+                if (remSeconds === 0 && !detail.closed_at) {
+                  remSeconds = 300;
+                }
+              } else if (detail.status === 'SCHEDULED' && timing.startsInSeconds !== undefined) {
+                remSeconds = Number(timing.startsInSeconds);
+              }
+
               set({
                 currentAuction: {
                   id: detail.id,
                   chit_group_id: detail.chit_group_id,
-                  chit_group_name: sub.chit_group_name || 'Chit Group',
+                  chit_group_name: sub.chit_group_name || detail.chit_group_name || 'Chit Group',
                   month_number: detail.month_number,
-                  status: detail.status === 'LIVE' ? 'IN_PROGRESS' : 'SCHEDULED',
+                  status: isLive ? 'IN_PROGRESS' : isCompleted ? 'CLOSED' : 'SCHEDULED',
                   scheduled_at: detail.scheduled_at || new Date().toISOString(),
-                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || 0),
-                  chit_amount: Number(sub.chit_amount),
-                  total_subscribers: sub.total_installments || 20,
+                  started_at: detail.started_at || timing.startedAt || (isLive ? detail.created_at : null),
+                  closed_at: detail.closed_at || null,
+                  duration_seconds: Number(detail.duration_seconds || timing.durationSeconds || 300),
+                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || detail.liveState?.lowestBidPct || 0),
+                  chit_amount: Number(sub.chit_amount || detail.chit_amount || 0),
+                  total_subscribers: sub.total_installments || detail.duration_months || 20,
                   present_subscribers: Number(detail.liveState?.presentCount || 0),
-                  remaining_seconds: Number(detail.liveState?.remainingSeconds || 0),
+                  remaining_seconds: remSeconds,
+                  starts_in_seconds: timing.startsInSeconds ?? null,
+                  winner_name: detail.winner_name || null,
+                  winner_ticket_number: detail.winning_ticket_number || null,
+                  foreman_commission_pct: Number(detail.foreman_commission_pct || 5.0),
                   bids: bidsRes.map((b: any) => ({
                     id: b.id || `b-${Date.now()}`,
                     bidder_name: b.bidder_name || `Ticket #${b.ticket_number}`,
@@ -600,25 +642,60 @@ export const useAppStore = create<AppState>((set, get) => ({
           const auctions = res.data?.data?.items || [];
           const liveAuction =
             auctions.find((a: any) => a.status === 'LIVE') ||
-            auctions.find((a: any) => a.status === 'SCHEDULED');
+            auctions.find((a: any) => a.status === 'SCHEDULED') ||
+            auctions.find((a: any) => a.status === 'COMPLETED');
           if (liveAuction) {
             const detailRes = await apiClient.get(`/auctions/${liveAuction.id}`);
             const detail = detailRes.data?.data;
             if (detail) {
               const bidsRes = detail.liveState?.bids || [];
+              const isLive = detail.status === 'LIVE';
+              const isCompleted = detail.status === 'COMPLETED';
+              const timing = detail.timing || {};
+
+              let remSeconds = 0;
+              if (isLive) {
+                if (timing.remainingSeconds !== undefined) {
+                  remSeconds = Number(timing.remainingSeconds);
+                } else if (detail.liveState?.remainingSeconds !== undefined) {
+                  remSeconds = Number(detail.liveState.remainingSeconds);
+                } else {
+                  const startedAt = detail.started_at || detail.liveState?.startedAt || detail.created_at;
+                  const dur = Number(detail.duration_seconds || detail.liveState?.durationSeconds || 300);
+                  if (startedAt) {
+                    const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+                    remSeconds = Math.max(0, dur - elapsed);
+                  } else {
+                    remSeconds = dur;
+                  }
+                }
+                if (remSeconds === 0 && !detail.closed_at) {
+                  remSeconds = 300;
+                }
+              } else if (detail.status === 'SCHEDULED' && timing.startsInSeconds !== undefined) {
+                remSeconds = Number(timing.startsInSeconds);
+              }
+
               set({
                 currentAuction: {
                   id: detail.id,
                   chit_group_id: detail.chit_group_id,
-                  chit_group_name: group.name || 'Chit Group',
+                  chit_group_name: group.name || detail.chit_group_name || 'Chit Group',
                   month_number: detail.month_number,
-                  status: detail.status === 'LIVE' ? 'IN_PROGRESS' : 'SCHEDULED',
+                  status: isLive ? 'IN_PROGRESS' : isCompleted ? 'CLOSED' : 'SCHEDULED',
                   scheduled_at: detail.scheduled_at || new Date().toISOString(),
-                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || 0),
-                  chit_amount: Number(group.chit_amount),
+                  started_at: detail.started_at || timing.startedAt || (isLive ? detail.created_at : null),
+                  closed_at: detail.closed_at || null,
+                  duration_seconds: Number(detail.duration_seconds || timing.durationSeconds || 300),
+                  current_lowest_bid_pct: Number(detail.winning_bid_pct || detail.liveState?.highestBidPct || detail.liveState?.lowestBidPct || 0),
+                  chit_amount: Number(group.chit_amount || detail.chit_amount || 0),
                   total_subscribers: group.duration_months || 20,
                   present_subscribers: Number(detail.liveState?.presentCount || 0),
-                  remaining_seconds: Number(detail.liveState?.remainingSeconds || 0),
+                  remaining_seconds: remSeconds,
+                  starts_in_seconds: timing.startsInSeconds ?? null,
+                  winner_name: detail.winner_name || null,
+                  winner_ticket_number: detail.winning_ticket_number || null,
+                  foreman_commission_pct: Number(group.foreman_commission_pct || detail.foreman_commission_pct || 5.0),
                   bids: bidsRes.map((b: any) => ({
                     id: b.id || `b-${Date.now()}`,
                     bidder_name: b.bidder_name || `Ticket #${b.ticket_number}`,
@@ -744,10 +821,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Bid rejected';
-      if (err.response?.status === 400 || err.response?.status === 403) {
-        return { success: false, error: msg };
-      }
-      console.warn('Bid API error, applying local optimistic state:', msg);
+      return { success: false, error: msg };
     }
 
     const discountAmount = (state.currentAuction.chit_amount * bidPct) / 100;
@@ -815,6 +889,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...state.currentAuction,
         status: 'CLOSED',
         remaining_seconds: 0,
+        closed_at: winnerData?.closedAt || new Date().toISOString(),
+        winner_name: winnerData?.winnerName || winnerData?.fullName || state.currentAuction.winner_name,
+        winner_ticket_number: winnerData?.winningTicketNumber || state.currentAuction.winner_ticket_number,
         current_lowest_bid_pct: winnerData?.winningBidPct ?? state.currentAuction.current_lowest_bid_pct,
       },
     });
@@ -827,12 +904,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (data) {
         const state = get();
         const livePct = data.liveState?.highestBidPct ?? data.liveState?.lowestBidPct ?? data.winning_bid_pct;
+        const isLive = data.status === 'LIVE';
+        const isCompleted = data.status === 'COMPLETED';
+        const timing = data.timing || {};
+        const remaining = isLive
+          ? (timing.remainingSeconds ?? data.liveState?.remainingSeconds ?? (state.currentAuction?.remaining_seconds || 300))
+          : 0;
+
         if (state.currentAuction) {
           set({
             currentAuction: {
               ...state.currentAuction,
               current_lowest_bid_pct: livePct ? Number(livePct) : state.currentAuction.current_lowest_bid_pct,
-              status: data.status === 'COMPLETED' ? 'CLOSED' : 'IN_PROGRESS',
+              status: isLive ? 'IN_PROGRESS' : isCompleted ? 'CLOSED' : 'SCHEDULED',
+              remaining_seconds: remaining,
+              started_at: data.started_at || timing.startedAt || state.currentAuction.started_at,
+              closed_at: data.closed_at || state.currentAuction.closed_at,
+              duration_seconds: Number(data.duration_seconds || timing.durationSeconds || state.currentAuction.duration_seconds || 300),
+              winner_name: data.winner_name || state.currentAuction.winner_name,
+              winner_ticket_number: data.winning_ticket_number || state.currentAuction.winner_ticket_number,
+              foreman_commission_pct: Number(data.foreman_commission_pct || state.currentAuction.foreman_commission_pct || 5.0),
             },
           });
         }
