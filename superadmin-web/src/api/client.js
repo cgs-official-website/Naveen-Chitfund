@@ -3,12 +3,13 @@ import { useAuthStore } from '../store/authStore';
 // In local dev, use empty string to leverage Vite's local proxy (/api -> http://localhost:4000)
 // In production, use VITE_API_URL or fallback to Railway production backend
 const getBaseURL = () => {
-    if (import.meta.env.DEV) {
-        return import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('railway')
-            ? import.meta.env.VITE_API_URL
-            : '';
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
     }
-    return import.meta.env.VITE_API_URL || 'https://naveen-chitfund-production.up.railway.app';
+    if (import.meta.env.DEV) {
+        return '';
+    }
+    return 'https://naveen-chitfund-production.up.railway.app';
 };
 
 const baseURL = getBaseURL();

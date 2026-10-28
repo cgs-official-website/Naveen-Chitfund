@@ -94,9 +94,8 @@ export const AuctionsPage = () => {
     useEffect(() => {
         if (!selectedAuctionId)
             return;
-        const socketUrl = import.meta.env.DEV
-            ? (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('railway') ? import.meta.env.VITE_API_URL : window.location.origin)
-            : (import.meta.env.VITE_API_URL || 'https://naveen-chitfund-production.up.railway.app');
+        const socketUrl = import.meta.env.VITE_API_URL
+            || (import.meta.env.DEV ? window.location.origin : 'https://naveen-chitfund-production.up.railway.app');
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
         });
@@ -258,8 +257,7 @@ export const AuctionsPage = () => {
           >
             <Plus className="w-4 h-4 stroke-[2.5]" /> Create Auction
           </button>
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
             40% Statutory Cap
           </span>
         </div>
@@ -294,7 +292,7 @@ export const AuctionsPage = () => {
       <Modal isOpen={Boolean(selectedAuctionId)} onClose={() => setSelectedAuctionId(null)} title={activeAuction?.group_name ? `Reverse Auction Room: ${activeAuction.group_name}` : 'Live Auction Room'} maxWidth="2xl">
         <div className="space-y-6">
           {/* Room Header Info */}
-          <div className="p-4 sm:p-4.5 rounded-2xl bg-gradient-to-r from-stone-50 via-amber-50/20 to-stone-50 dark:from-[#1A0B14] dark:via-[#260E1E] dark:to-[#1A0B14] border border-stone-200/90 dark:border-maroon-800/60 grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 text-xs shadow-xs">
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-stone-50 via-amber-50/20 to-stone-50 dark:from-[#1A0B14] dark:via-[#260E1E] dark:to-[#1A0B14] border border-stone-200/90 dark:border-maroon-800/60 grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 text-xs shadow-xs">
             <div>
               <span className="text-stone-400 block font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">Chit Value</span>
               <CurrencyText amount={activeAuction?.chit_amount} className="text-sm sm:text-base font-black text-stone-900 dark:text-stone-100"/>
@@ -337,8 +335,7 @@ export const AuctionsPage = () => {
             <>
               {/* Live Feed Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <h4 className="text-xs font-black text-stone-900 dark:text-stone-100 uppercase tracking-wider">
                   Live Bids Audit Stream ({liveBids.length})
                 </h4>
                 {activeAuction?.status === 'LIVE' && (

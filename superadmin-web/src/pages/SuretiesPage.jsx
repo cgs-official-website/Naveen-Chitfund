@@ -118,7 +118,7 @@ export const SuretiesPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+          <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
             Fiduciary Underwriting Desk
           </span>
         </div>

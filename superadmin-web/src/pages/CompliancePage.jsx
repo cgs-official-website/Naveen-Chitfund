@@ -48,8 +48,7 @@ export const CompliancePage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
             48h Registrar Filing Window
           </span>
         </div>
@@ -70,13 +69,27 @@ export const CompliancePage = () => {
         </div>
 
         <div className="space-y-3.5">
-          {(trackerData || []).map((t) => (<div key={t.id} className="p-4.5 bg-stone-50/80 dark:bg-[#180B14] border border-stone-200/80 dark:border-maroon-900/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs transition hover:border-gold-500/40">
+          {(trackerData || []).map((t) => (
+            <div
+              key={t.id}
+              className={`p-4 sm:p-5 bg-white/95 dark:bg-[#180B14]/95 border rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs transition-all duration-200 shadow-xs ${
+                t.isOverdue
+                  ? 'border-rose-500/50 dark:border-rose-500/40 hover:border-rose-500/70'
+                  : 'border-stone-200/90 dark:border-maroon-900/50 hover:border-gold-500/40'
+              }`}
+            >
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="font-black text-sm text-stone-900 dark:text-stone-100">
                     {t.group_name} (Month #{t.month_number})
                   </span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${t.isOverdue ? 'bg-rose-500 text-white shadow-sm shadow-rose-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'}`}>
+                  <span
+                    className={`text-[11px] font-bold uppercase tracking-wider ${
+                      t.isOverdue
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
                     {t.isOverdue ? 'Filing Overdue' : `${t.hoursRemaining}h ${t.minutesRemaining}m Remaining`}
                   </span>
                 </div>
@@ -86,14 +99,21 @@ export const CompliancePage = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <button onClick={() => setSelectedFormXivAuctionId(t.id)} className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-[#160812] font-black text-xs shadow-sm shadow-gold-500/20 transition cursor-pointer">
+                <button
+                  onClick={() => setSelectedFormXivAuctionId(t.id)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-[#160812] font-black text-xs shadow-sm shadow-gold-500/20 transition cursor-pointer"
+                >
                   Generate Form XIV
                 </button>
-                <button onClick={() => setSelectedGstAuctionId(t.id)} className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-[#25101E] border border-stone-200/80 dark:border-maroon-800/60 text-stone-700 dark:text-stone-200 font-bold text-xs hover:border-gold-500/40 transition cursor-pointer">
+                <button
+                  onClick={() => setSelectedGstAuctionId(t.id)}
+                  className="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-[#25101E] border border-stone-200/80 dark:border-maroon-800/60 text-stone-700 dark:text-stone-200 font-bold text-xs hover:border-gold-500/40 transition cursor-pointer"
+                >
                   GST Invoice
                 </button>
               </div>
-            </div>))}
+            </div>
+          ))}
           {(!trackerData || trackerData.length === 0) && !isTrackerLoading && (<div className="p-8 text-center text-xs text-stone-400 rounded-2xl border border-dashed border-stone-200 dark:border-maroon-900/50">No completed auctions pending filing</div>)}
         </div>
       </div>

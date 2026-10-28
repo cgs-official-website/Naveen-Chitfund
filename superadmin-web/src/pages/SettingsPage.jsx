@@ -79,7 +79,7 @@ export const SettingsPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
+          <span className="text-xs font-bold text-gold-600 dark:text-gold-300">
             Fiduciary Access Level
           </span>
         </div>

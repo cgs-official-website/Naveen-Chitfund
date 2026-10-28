@@ -42,7 +42,7 @@ export const AuditLogsPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
+          <span className="text-xs font-bold text-gold-600 dark:text-gold-300">
             Immutable Event Log
           </span>
         </div>
@@ -93,7 +93,7 @@ export const AuditLogsPage = () => {
                   </div>
 
                   {/* Expandable JSON Diff */}
-                  {isExpanded && (<div className="mt-3 p-4.5 bg-black/60 text-stone-200 rounded-xl text-xs font-mono border border-maroon-900/40 space-y-3.5 overflow-x-auto">
+                  {isExpanded && (<div className="mt-3 p-4 sm:p-5 bg-black/60 text-stone-200 rounded-xl text-xs font-mono border border-maroon-900/40 space-y-3.5 overflow-x-auto">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {log.before_state && (<div>
                             <span className="text-rose-400 font-bold block mb-1.5 uppercase text-[10px] tracking-wider">State Before Mutation:</span>
