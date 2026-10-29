@@ -90,38 +90,61 @@ export const AuctionsPage = () => {
         },
     });
 
-    // Socket.IO connection for live auction room
+    // Socket.IO connection for live auction room and real-time dashboard updates
     useEffect(() => {
-        if (!selectedAuctionId)
-            return;
         const socketUrl = import.meta.env.DEV
             ? (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('railway') ? import.meta.env.VITE_API_URL : window.location.origin)
             : (import.meta.env.VITE_API_URL || 'https://naveen-chitfund-production.up.railway.app');
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
         });
-        socket.emit('join_auction', {
-            auctionId: selectedAuctionId,
-            token: accessToken,
-        });
+
+        if (selectedAuctionId) {
+            socket.emit('join_auction', {
+                auctionId: selectedAuctionId,
+                token: accessToken,
+            });
+        }
+
         socket.on('bid_placed', (bidData) => {
-            setLiveBids((prev) => [
-                {
-                    ticketNumber: bidData.ticketNumber,
-                    bidPct: bidData.bidPct,
-                    bidAt: bidData.bidAt || new Date().toISOString(),
-                },
-                ...prev,
-            ]);
+            if (bidData.auctionId === selectedAuctionId || !selectedAuctionId) {
+                setLiveBids((prev) => [
+                    {
+                        ticketNumber: bidData.ticketNumber,
+                        bidPct: bidData.bidPct,
+                        bidAt: bidData.bidAt || new Date().toISOString(),
+                    },
+                    ...prev,
+                ]);
+            }
+            // Auto-update auctions list & leading bids live without full page refresh
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+            if (selectedAuctionId) {
+                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-bids', selectedAuctionId] });
+            }
         });
+
         socket.on('auction:application_submitted', () => {
             refetchTickets();
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
         });
+
+        socket.on('auction_started', () => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+        });
+
+        socket.on('auction:started', () => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+        });
+
         socket.on('auction_closed', () => {
             queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
         });
+
         return () => {
-            socket.emit('leave_auction', { auctionId: selectedAuctionId });
+            if (selectedAuctionId) {
+                socket.emit('leave_auction', { auctionId: selectedAuctionId });
+            }
             socket.disconnect();
         };
     }, [selectedAuctionId, accessToken, queryClient, refetchTickets]);

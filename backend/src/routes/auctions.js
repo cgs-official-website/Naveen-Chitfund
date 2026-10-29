@@ -71,7 +71,8 @@ router.get(
     );
     const rowsRes = await query(
       `SELECT * FROM chit_auctions WHERE chit_group_id = $1
-       ORDER BY month_number LIMIT $2 OFFSET $3`,
+       ORDER BY CASE WHEN status = 'LIVE' THEN 1 WHEN status = 'SCHEDULED' THEN 2 ELSE 3 END, month_number DESC
+       LIMIT $2 OFFSET $3`,
       [req.params.groupId, limit, offset]
     );
     res.json({

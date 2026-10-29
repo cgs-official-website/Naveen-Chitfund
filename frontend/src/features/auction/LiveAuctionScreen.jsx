@@ -138,24 +138,46 @@ export const LiveAuctionScreen = () => {
       }
     };
 
-    const handleStartEvent = () => {
+    const handleStartEvent = (data) => {
+      useAppStore.setState((state) => ({
+        currentAuction: state.currentAuction ? { ...state.currentAuction, status: 'IN_PROGRESS' } : null,
+      }));
       fetchCurrentAuction();
-      fetchAuctionState(currentAuction.id);
+      if (currentAuction?.id) {
+        fetchAuctionState(currentAuction.id);
+      }
     };
 
     const handleTicketApproved = (data) => {
-      if (data && (data.auctionId === currentAuction.id || !data.auctionId)) {
-        fetchMyAuctionTicket(currentAuction.id);
+      if (data && (data.auctionId === currentAuction?.id || !data.auctionId)) {
+        useAppStore.setState((state) => ({
+          activeTicket: {
+            ...(state.activeTicket || {}),
+            ticket_code: data.ticketCode || state.activeTicket?.ticket_code,
+            status: 'ACTIVE',
+          },
+        }));
+        if (currentAuction?.id) {
+          fetchMyAuctionTicket(currentAuction.id);
+        }
         fetchUserAuctionHistory();
         Alert.alert(
           'Auction Token Approved! 🎉',
-          `Your bidding token ${data.ticketCode || ''} has been approved by the Superadmin. You now have full access to participate in the live auction!`
+          `Your bidding token ${data.ticketCode || ''} has been approved by the Superadmin. You can now participate in live reverse auction bidding!`
         );
       }
     };
     const handleTicketRejected = (data) => {
-      if (data && (data.auctionId === currentAuction.id || !data.auctionId)) {
-        fetchMyAuctionTicket(currentAuction.id);
+      if (data && (data.auctionId === currentAuction?.id || !data.auctionId)) {
+        useAppStore.setState((state) => ({
+          activeTicket: {
+            ...(state.activeTicket || {}),
+            status: 'REJECTED',
+          },
+        }));
+        if (currentAuction?.id) {
+          fetchMyAuctionTicket(currentAuction.id);
+        }
         fetchUserAuctionHistory();
         Alert.alert(
           'Token Application Denied',
@@ -536,7 +558,33 @@ export const LiveAuctionScreen = () => {
       )}
 
       {!isAuctionClosed ? (
-        activeTicket?.status === 'ACTIVE' ? (
+        currentAuction.status === 'SCHEDULED' ? (
+          <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
+            <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+              <Clock size={28} color="#D4AF37" />
+            </View>
+            <Text style={[typography.h3, { color: theme.text.primary, marginTop: 8, fontWeight: '700' }]}>
+              Auction Scheduled · Bidding Freezed
+            </Text>
+            <Text style={[typography.caption, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, lineHeight: 18, maxWidth: 300 }]}>
+              {activeTicket?.status === 'ACTIVE'
+                ? `Token Approved (${activeTicket.ticket_code}). Bidding will automatically unlock when the auction session goes LIVE!`
+                : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                ? 'Your ticket application is pending Superadmin authorization. Bidding controls are freezed until approval.'
+                : 'Please apply for an auction bidding token below to qualify for bidding.'}
+            </Text>
+            {(!activeTicket || (activeTicket.status !== 'ACTIVE' && activeTicket.status !== 'APPLIED' && activeTicket.status !== 'PENDING')) && (
+              <Button
+                title={activeTicketLoading ? 'Applying...' : 'Apply for Bidding Token'}
+                variant="primary"
+                size="sm"
+                loading={activeTicketLoading}
+                onPress={() => applyForAuctionTicket(currentAuction.id)}
+                style={{ marginTop: 12 }}
+              />
+            )}
+          </Card>
+        ) : activeTicket?.status === 'ACTIVE' ? (
           <View style={{ marginTop: 16 }}>
             <ReverseBidSlider
               currentLowestBidPct={currentAuction.current_lowest_bid_pct}
@@ -570,6 +618,16 @@ export const LiveAuctionScreen = () => {
                 ? 'Your ticket application is pending Foreman verification. Bidding sliders will unlock as soon as your access is approved.'
                 : 'Under platform security protocol, only subscribers approved by the Superadmin are granted bidding access.'}
             </Text>
+            {(!activeTicket || (activeTicket.status !== 'ACTIVE' && activeTicket.status !== 'APPLIED' && activeTicket.status !== 'PENDING')) && (
+              <Button
+                title={activeTicketLoading ? 'Applying...' : 'Apply for Bidding Token'}
+                variant="primary"
+                size="sm"
+                loading={activeTicketLoading}
+                onPress={() => applyForAuctionTicket(currentAuction.id)}
+                style={{ marginTop: 12 }}
+              />
+            )}
           </Card>
         )
       ) : (

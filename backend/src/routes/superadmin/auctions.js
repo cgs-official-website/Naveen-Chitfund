@@ -14,6 +14,7 @@ import {
   approveAuctionTicket,
   rejectAuctionTicket,
 } from '../../services/ticketService.js';
+import { sendUserNotification } from '../../services/notificationService.js';
 
 const router = express.Router();
 
@@ -277,11 +278,81 @@ router.post(
       });
     }
 
+    // Persist in-app notification & send push alert to subscriber
+    try {
+      await sendUserNotification({
+        userId: approvedTicket.user_id,
+        title: 'Auction Ticket Approved! 🎉',
+        body: `Your bidding ticket ${approvedTicket.ticket_code} has been approved by the Superadmin. You can now place bids in the live reverse auction!`,
+        category: 'AUCTION',
+        data: { auctionId: id, ticketCode: approvedTicket.ticket_code, ticketId, status: 'ACTIVE' },
+      });
+    } catch (notifErr) {
+      console.warn('[TicketApproval] Failed to dispatch user notification:', notifErr.message);
+    }
+
     res.json({
       success: true,
       message: 'Ticket approved successfully. User can now access live auction.',
       data: approvedTicket,
     });
+  })
+);
+
+// POST /api/v1/superadmin/auctions/:id/start (Move scheduled auction to LIVE)
+router.post(
+  '/:id/start',
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { rows } = await query(
+      `UPDATE chit_auctions SET status = 'LIVE' WHERE id = $1 AND status = 'SCHEDULED' RETURNING *`,
+      [id]
+    );
+    if (!rows.length) throw new ApiError(400, 'Auction not found or not in SCHEDULED state');
+    const auction = rows[0];
+
+    const groupRes = await query(
+      'SELECT name, chit_amount, foreman_commission_pct FROM chit_groups WHERE id = $1',
+      [auction.chit_group_id]
+    );
+    const group = groupRes.rows[0] || {};
+    const minCommission = Number(group.foreman_commission_pct || 5);
+
+    await redis.set(
+      auctionKey(id),
+      JSON.stringify({
+        lowestBidPct: null,
+        highestBidPct: null,
+        minBidPct: minCommission,
+        bidderSubscriptionId: null,
+        updatedAt: Date.now(),
+      })
+    );
+    await redis.del(auctionBidsKey(id));
+
+    const io = req.app.get('io');
+    if (io) {
+      broadcastStart(io, id, {
+        auction,
+        chitGroupId: auction.chit_group_id,
+        monthNumber: auction.month_number,
+        groupName: group.name,
+        chitAmount: group.chit_amount,
+      });
+    }
+
+    await logAuditEvent(null, {
+      eventType: 'AUCTION_STARTED',
+      actorId: req.superAdmin?.id || null,
+      actorType: 'SUPERADMIN',
+      entityType: 'chit_auctions',
+      entityId: id,
+      metadata: { monthNumber: auction.month_number, status: 'LIVE' },
+      ipAddress: req.ip,
+    });
+
+    res.json({ success: true, message: 'Auction is now LIVE', data: auction });
   })
 );
 
