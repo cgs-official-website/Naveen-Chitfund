@@ -67,13 +67,31 @@ export const LiveAuctionScreen = () => {
   const [socketStatus, setSocketStatus] = useState('connected');
   const [ticketError, setTicketError] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(
-    currentAuction ? currentAuction.remaining_seconds : 120
+    currentAuction ? currentAuction.remaining_seconds : 300
   );
   const [selectedBidPct, setSelectedBidPct] = useState(
-    currentAuction ? Math.min(40, Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1))) : 23.0
+    currentAuction
+      ? Math.max(
+          Number(currentAuction.foreman_commission_pct || 5.0),
+          (currentAuction.current_lowest_bid_pct || 0) > 0
+            ? Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1))
+            : Number(currentAuction.foreman_commission_pct || 5.0)
+        )
+      : 5.0
   );
   const [bidSuccessMessage, setBidSuccessMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const formatTimeOnly = (isoString) => {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return '';
+    }
+  };
 
   useEffect(() => {
     fetchCurrentAuction();
@@ -87,18 +105,34 @@ export const LiveAuctionScreen = () => {
     }
   }, [currentAuction?.id, fetchMyAuctionTicket, fetchUserAuctionHistory]);
 
+  // Sync state and compute dynamic remaining seconds from timing metadata
   useEffect(() => {
     if (currentAuction) {
-      if (currentAuction.remaining_seconds !== undefined) {
-        setRemainingSeconds(currentAuction.remaining_seconds);
+      if (currentAuction.status === 'IN_PROGRESS') {
+        const startedMs = currentAuction.started_at ? new Date(currentAuction.started_at).getTime() : null;
+        const duration = currentAuction.duration_seconds || 300;
+        if (startedMs && !isNaN(startedMs)) {
+          const elapsed = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+          const calculated = Math.max(0, duration - elapsed);
+          setRemainingSeconds(calculated > 0 ? calculated : (currentAuction.remaining_seconds || duration));
+        } else {
+          setRemainingSeconds(currentAuction.remaining_seconds || duration);
+        }
+      } else if (currentAuction.status === 'SCHEDULED' && currentAuction.scheduled_at) {
+        const schedMs = new Date(currentAuction.scheduled_at).getTime();
+        const untilStart = Math.max(0, Math.floor((schedMs - Date.now()) / 1000));
+        setRemainingSeconds(untilStart);
+      } else if (currentAuction.status === 'CLOSED') {
+        setRemainingSeconds(0);
       }
+
       if (currentAuction.current_lowest_bid_pct !== undefined) {
         setSelectedBidPct(
           Math.min(40, Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1)))
         );
       }
     }
-  }, [currentAuction?.id]);
+  }, [currentAuction?.id, currentAuction?.status, currentAuction?.started_at, currentAuction?.remaining_seconds]);
 
   useEffect(() => {
     const unsubscribe = subscribeSocketStatus((status) => {
@@ -209,21 +243,43 @@ export const LiveAuctionScreen = () => {
   }, [currentAuction?.id, fetchMyAuctionTicket, fetchUserAuctionHistory]);
 
   useEffect(() => {
-    if (currentAuction?.current_lowest_bid_pct !== undefined) {
-      setSelectedBidPct((prev) =>
-        prev <= currentAuction.current_lowest_bid_pct
-          ? Math.min(40, Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1)))
-          : prev
+    if (currentAuction) {
+      const minFloor = Math.max(
+        Number(currentAuction.foreman_commission_pct || 5.0),
+        (currentAuction.current_lowest_bid_pct || 0) > 0
+          ? Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1))
+          : Number(currentAuction.foreman_commission_pct || 5.0)
       );
+      setSelectedBidPct((prev) => (prev < minFloor ? minFloor : prev));
     }
-  }, [currentAuction?.current_lowest_bid_pct]);
+  }, [currentAuction?.current_lowest_bid_pct, currentAuction?.foreman_commission_pct]);
 
+  // Dynamic 1-second interval countdown
   useEffect(() => {
+    if (!currentAuction) return;
+
     const interval = setInterval(() => {
-      setRemainingSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+      if (currentAuction.status === 'IN_PROGRESS') {
+        setRemainingSeconds((prev) => {
+          if (prev <= 1) {
+            // Re-fetch auction state when timer reaches zero
+            fetchAuctionState(currentAuction.id);
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else if (currentAuction.status === 'SCHEDULED' && currentAuction.scheduled_at) {
+        const schedMs = new Date(currentAuction.scheduled_at).getTime();
+        const untilStart = Math.max(0, Math.floor((schedMs - Date.now()) / 1000));
+        setRemainingSeconds(untilStart);
+        if (untilStart <= 0) {
+          fetchCurrentAuction();
+        }
+      }
     }, 1000);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [currentAuction?.id, currentAuction?.status, currentAuction?.scheduled_at, fetchAuctionState, fetchCurrentAuction]);
 
   if (!currentAuction && activeTab !== 'history') {
     const enrolledGroup = activeChits?.[0];
@@ -374,7 +430,22 @@ export const LiveAuctionScreen = () => {
   }
 
   const handlePlaceBid = async () => {
-    if (selectedBidPct <= currentAuction.current_lowest_bid_pct) {
+    const minFloor = Math.max(
+      Number(currentAuction?.foreman_commission_pct || 5.0),
+      (currentAuction?.current_lowest_bid_pct || 0) > 0
+        ? Number((currentAuction.current_lowest_bid_pct + 0.5).toFixed(1))
+        : Number(currentAuction?.foreman_commission_pct || 5.0)
+    );
+
+    if (selectedBidPct < minFloor) {
+      Alert.alert(
+        'Bid Below Minimum',
+        `Under Section 21 of the Chit Funds Act, discount bids cannot be less than the minimum foreman commission of ${minFloor}%.`
+      );
+      return;
+    }
+
+    if (currentAuction.current_lowest_bid_pct > 0 && selectedBidPct <= currentAuction.current_lowest_bid_pct) {
       Alert.alert(
         'Invalid Bid',
         `Your discount bid must strictly exceed the current highest discount of ${currentAuction.current_lowest_bid_pct}%.`
@@ -400,13 +471,15 @@ export const LiveAuctionScreen = () => {
         Alert.alert('Bid Rejected', res?.error || 'Could not place bid');
       }
     } catch (err) {
-      Alert.alert('Error', 'An unexpected error occurred while placing bid.');
+      Alert.alert('Bid Rejected', err?.message || 'An unexpected error occurred while placing bid.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isAuctionClosed = remainingSeconds === 0 || currentAuction.status === 'CLOSED';
+  const isAuctionLive = currentAuction?.status === 'IN_PROGRESS';
+  const isAuctionScheduled = currentAuction?.status === 'SCHEDULED';
+  const isAuctionClosed = currentAuction?.status === 'CLOSED';
 
   const renderAuctionControls = () => (
     <View style={styles.controlsCol}>
@@ -422,16 +495,82 @@ export const LiveAuctionScreen = () => {
         ]}
       >
         <View style={styles.dialHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Coins size={15} color="#D4AF37" />
-            <Text style={[typography.caption, { color: '#D4AF37', fontWeight: '700', marginLeft: 6, letterSpacing: 1 }]}>
-              {currentAuction.chit_group_name || 'LIVE REVERSE AUCTION'}
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Coins size={15} color="#D4AF37" />
+              <Text numberOfLines={1} style={[typography.caption, { color: '#D4AF37', fontWeight: '800', marginLeft: 6, letterSpacing: 0.8, fontSize: 13 }]}>
+                {currentAuction.chit_group_name || 'REVERSE AUCTION'}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 10, color: theme.text.secondary, marginTop: 2, marginLeft: 21 }}>
+              {isAuctionLive
+                ? `● LIVE SESSION · Started at ${formatTimeOnly(currentAuction.started_at) || 'recently'}`
+                : isAuctionScheduled
+                ? `📅 UPCOMING · Scheduled for ${formatTimeOnly(currentAuction.scheduled_at) || 'TBD'}`
+                : `✓ CONCLUDED · Finalized at ${formatTimeOnly(currentAuction.closed_at) || 'earlier'}`}
             </Text>
           </View>
-          <View style={[styles.timerBadge, { backgroundColor: remainingSeconds <= 30 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(212, 175, 55, 0.15)' }]}>
-            <Clock size={12} color={remainingSeconds <= 30 ? '#EF4444' : '#D4AF37'} />
-            <Text style={[styles.timerText, { color: remainingSeconds <= 30 ? '#EF4444' : '#D4AF37' }]}>
-              {Math.floor(remainingSeconds / 60)}:{(remainingSeconds % 60).toString().padStart(2, '0')}
+
+          {/* Dynamic Status / Timer Pill */}
+          <View
+            style={[
+              styles.timerBadge,
+              {
+                backgroundColor: isAuctionClosed
+                  ? 'rgba(16, 185, 129, 0.16)'
+                  : isAuctionScheduled
+                  ? 'rgba(245, 158, 11, 0.16)'
+                  : remainingSeconds <= 30
+                  ? 'rgba(239, 68, 68, 0.18)'
+                  : 'rgba(212, 175, 55, 0.18)',
+                borderColor: isAuctionClosed
+                  ? 'rgba(16, 185, 129, 0.4)'
+                  : isAuctionScheduled
+                  ? 'rgba(245, 158, 11, 0.4)'
+                  : remainingSeconds <= 30
+                  ? 'rgba(239, 68, 68, 0.45)'
+                  : 'rgba(212, 175, 55, 0.4)',
+                borderWidth: 1,
+              },
+            ]}
+          >
+            <Clock
+              size={12}
+              color={
+                isAuctionClosed
+                  ? '#10B981'
+                  : isAuctionScheduled
+                  ? '#D97706'
+                  : remainingSeconds <= 30
+                  ? '#EF4444'
+                  : '#D4AF37'
+              }
+            />
+            <Text
+              style={[
+                styles.timerText,
+                {
+                  color: isAuctionClosed
+                    ? '#10B981'
+                    : isAuctionScheduled
+                    ? '#D97706'
+                    : remainingSeconds <= 30
+                    ? '#EF4444'
+                    : '#D4AF37',
+                  fontWeight: '800',
+                  marginLeft: 4,
+                },
+              ]}
+            >
+              {isAuctionClosed
+                ? 'COMPLETED'
+                : isAuctionScheduled
+                ? remainingSeconds > 0
+                  ? `Starts in ${Math.floor(remainingSeconds / 60)}:${(remainingSeconds % 60).toString().padStart(2, '0')}`
+                  : 'SCHEDULED'
+                : remainingSeconds > 0
+                ? `${Math.floor(remainingSeconds / 60)}:${(remainingSeconds % 60).toString().padStart(2, '0')}`
+                : 'CONCLUDING'}
             </Text>
           </View>
         </View>
@@ -516,11 +655,23 @@ export const LiveAuctionScreen = () => {
         <View style={styles.dialWrapper}>
           <BidDial
             size={isTablet ? 320 : 270}
-            totalDurationSeconds={120}
+            totalDurationSeconds={currentAuction.duration_seconds || 300}
             remainingSeconds={remainingSeconds}
             currentLowestBidPct={currentAuction.current_lowest_bid_pct}
             chitAmount={currentAuction.chit_amount}
-            statusText={isAuctionClosed ? 'AUCTION CLOSED' : 'REVERSE BID DIAL'}
+            foremanCommissionPct={Number(currentAuction.foreman_commission_pct || 5.0)}
+            auctionStatus={currentAuction.status}
+            startedAtText={formatTimeOnly(currentAuction.started_at)}
+            closedAtText={formatTimeOnly(currentAuction.closed_at)}
+            scheduledAtText={formatTimeOnly(currentAuction.scheduled_at)}
+            winnerInfo={
+              currentAuction.winner_name
+                ? {
+                    winnerName: currentAuction.winner_name,
+                    ticketNumber: currentAuction.winner_ticket_number,
+                  }
+                : null
+            }
           />
         </View>
 
@@ -557,39 +708,14 @@ export const LiveAuctionScreen = () => {
         </View>
       )}
 
-      {!isAuctionClosed ? (
-        currentAuction.status === 'SCHEDULED' ? (
-          <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
-            <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
-              <Clock size={28} color="#D4AF37" />
-            </View>
-            <Text style={[typography.h3, { color: theme.text.primary, marginTop: 8, fontWeight: '700' }]}>
-              Auction Scheduled · Bidding Freezed
-            </Text>
-            <Text style={[typography.caption, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, lineHeight: 18, maxWidth: 300 }]}>
-              {activeTicket?.status === 'ACTIVE'
-                ? `Token Approved (${activeTicket.ticket_code}). Bidding will automatically unlock when the auction session goes LIVE!`
-                : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
-                ? 'Your ticket application is pending Superadmin authorization. Bidding controls are freezed until approval.'
-                : 'Please apply for an auction bidding token below to qualify for bidding.'}
-            </Text>
-            {(!activeTicket || (activeTicket.status !== 'ACTIVE' && activeTicket.status !== 'APPLIED' && activeTicket.status !== 'PENDING')) && (
-              <Button
-                title={activeTicketLoading ? 'Applying...' : 'Apply for Bidding Token'}
-                variant="primary"
-                size="sm"
-                loading={activeTicketLoading}
-                onPress={() => applyForAuctionTicket(currentAuction.id)}
-                style={{ marginTop: 12 }}
-              />
-            )}
-          </Card>
-        ) : activeTicket?.status === 'ACTIVE' ? (
+      {isAuctionLive ? (
+        activeTicket?.status === 'ACTIVE' ? (
           <View style={{ marginTop: 16 }}>
             <ReverseBidSlider
               currentLowestBidPct={currentAuction.current_lowest_bid_pct}
               selectedBidPct={selectedBidPct}
               onBidChange={setSelectedBidPct}
+              minBidPct={Number(currentAuction.foreman_commission_pct || 5.0)}
               chitAmount={currentAuction.chit_amount}
               totalSubscribers={currentAuction.total_subscribers}
             />
@@ -630,16 +756,45 @@ export const LiveAuctionScreen = () => {
             )}
           </Card>
         )
+      ) : isAuctionScheduled ? (
+        <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
+          <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
+            <Clock size={28} color="#D4AF37" />
+          </View>
+          <Text style={[typography.h3, { color: theme.text.primary, marginTop: 8, fontWeight: '700' }]}>
+            Auction Scheduled · Bidding Freezed
+          </Text>
+          <Text style={[typography.caption, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, lineHeight: 18, maxWidth: 300 }]}>
+            {activeTicket?.status === 'ACTIVE'
+              ? `Token Approved (${activeTicket.ticket_code}). Bidding will automatically unlock when the auction session goes LIVE!`
+              : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+              ? 'Your ticket application is pending Superadmin authorization. Bidding controls are freezed until approval.'
+              : 'Please apply for an auction bidding token below to qualify for bidding.'}
+          </Text>
+          {(!activeTicket || (activeTicket.status !== 'ACTIVE' && activeTicket.status !== 'APPLIED' && activeTicket.status !== 'PENDING')) && (
+            <Button
+              title={activeTicketLoading ? 'Applying...' : 'Apply for Bidding Token'}
+              variant="primary"
+              size="sm"
+              loading={activeTicketLoading}
+              onPress={() => applyForAuctionTicket(currentAuction.id)}
+              style={{ marginTop: 12 }}
+            />
+          )}
+        </Card>
       ) : (
         <Card variant="goldAccent" style={[styles.closedCard, { marginTop: 16 }]}>
-          <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.18)' }]}>
-            <Award size={32} color="#D4AF37" />
+          <View style={[styles.closedIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.18)' }]}>
+            <Award size={32} color="#10B981" />
           </View>
           <Text style={[typography.h2, { color: theme.text.primary, marginTop: 10 }]}>
             Auction Concluded
           </Text>
           <Text style={[typography.bodyMedium, { color: theme.text.secondary, textAlign: 'center', marginTop: 4, lineHeight: 19 }]}>
-            Winning Bid: {currentAuction.current_lowest_bid_pct}% discount. Winner transitioned to Successful Bidder (SB) awaiting statutory sureties (§ 31).
+            Winning Bid: {currentAuction.current_lowest_bid_pct}% discount.
+            {currentAuction.winner_name ? ` Winner: ${currentAuction.winner_name}` : ''}
+            {currentAuction.winner_ticket_number ? ` (Ticket #${currentAuction.winner_ticket_number})` : ''}.
+            Dividend distributions and double-entry ledger records generated.
           </Text>
         </Card>
       )}

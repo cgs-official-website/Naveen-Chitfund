@@ -15,9 +15,13 @@ export const ReverseBidSlider = ({
   const { theme, typography } = useTheme();
 
   const step = 0.5;
+  const effectiveMin = Math.max(
+    minBidPct,
+    (currentLowestBidPct || 0) > 0 ? Number((currentLowestBidPct + 0.5).toFixed(1)) : minBidPct
+  );
 
   const handleDecrease = () => {
-    const nextVal = Math.max(currentLowestBidPct + 0.5, selectedBidPct - step);
+    const nextVal = Math.max(effectiveMin, selectedBidPct - step);
     onBidChange(Number(nextVal.toFixed(1)));
   };
 
@@ -27,13 +31,13 @@ export const ReverseBidSlider = ({
   };
 
   const handleQuickStep = (delta) => {
-    const nextVal = Math.min(maxBidPct, Math.max(currentLowestBidPct + 0.5, selectedBidPct + delta));
+    const nextVal = Math.min(maxBidPct, Math.max(effectiveMin, selectedBidPct + delta));
     onBidChange(Number(nextVal.toFixed(1)));
   };
 
   const discountRupees = (chitAmount * selectedBidPct) / 100;
   const prizeMoney = chitAmount - discountRupees;
-  const foremanCommission = (chitAmount * 5) / 100;
+  const foremanCommission = (chitAmount * (minBidPct || 5)) / 100;
   const distributableDividend = Math.max(0, discountRupees - foremanCommission);
   const dividendPerSubscriber = distributableDividend / totalSubscribers;
 
@@ -45,7 +49,7 @@ export const ReverseBidSlider = ({
         <View>
           <Text style={[typography.h3, { color: theme.text.primary }]}>Your Reverse Bid</Text>
           <Text style={[typography.caption, { color: theme.text.secondary }]}>
-            Current best: {currentLowestBidPct.toFixed(1)}% · Legal Cap: {maxBidPct}%
+            {(currentLowestBidPct || 0) > 0 ? `Current best: ${currentLowestBidPct.toFixed(1)}% · ` : `Min floor: ${effectiveMin.toFixed(1)}% · `}Legal Cap: {maxBidPct}%
           </Text>
         </View>
         <View style={[styles.discountBadge, { backgroundColor: theme.maroon.primary + '15' }]}>
@@ -60,14 +64,14 @@ export const ReverseBidSlider = ({
       <View style={styles.stepperContainer}>
         <TouchableOpacity
           onPress={handleDecrease}
-          disabled={selectedBidPct <= currentLowestBidPct + 0.5}
+          disabled={selectedBidPct <= effectiveMin}
           activeOpacity={0.7}
           style={[
             styles.stepButton,
             {
               backgroundColor: theme.surface.cardSubtle,
               borderColor: theme.surface.border,
-              opacity: selectedBidPct <= currentLowestBidPct + 0.5 ? 0.4 : 1,
+              opacity: selectedBidPct <= effectiveMin ? 0.4 : 1,
             },
           ]}
         >

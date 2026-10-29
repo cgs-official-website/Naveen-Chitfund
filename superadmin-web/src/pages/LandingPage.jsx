@@ -198,8 +198,7 @@ export const LandingPage = () => {
                       </div>
                       <div className="flex items-center justify-between mt-3 text-[10px] text-white/90 pt-2 border-t border-white/10">
                         <span>Your Ticket: <strong className="text-gold-300">#07</strong></span>
-                        <span className="flex items-center gap-1 font-semibold text-emerald-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="font-semibold text-emerald-300">
                           Auction Live (02:14)
                         </span>
                       </div>

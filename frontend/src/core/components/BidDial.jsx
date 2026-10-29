@@ -6,53 +6,86 @@ import { useTheme } from '../theme/ThemeProvider';
 export const BidDial = ({
   size = 280,
   strokeWidth = 14,
-  totalDurationSeconds = 120,
+  totalDurationSeconds = 300,
   remainingSeconds = 45,
-  currentLowestBidPct,
-  chitAmount,
+  currentLowestBidPct = 0,
+  chitAmount = 100000,
   foremanCommissionPct = 5,
-  statusText = 'LIVE AUCTION',
+  statusText,
+  auctionStatus = 'IN_PROGRESS', // 'IN_PROGRESS' | 'SCHEDULED' | 'CLOSED'
+  startedAtText = '',
+  closedAtText = '',
+  scheduledAtText = '',
+  winnerInfo = null,
 }) => {
   const { theme, typography, isDark } = useTheme();
 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
+  const isClosed = auctionStatus === 'CLOSED';
+  const isScheduled = auctionStatus === 'SCHEDULED';
+  const isLive = auctionStatus === 'IN_PROGRESS';
+
   // Calculate progress ratio (0 to 1)
-  const progressRatio = Math.max(0, Math.min(1, remainingSeconds / totalDurationSeconds));
+  const duration = Math.max(1, totalDurationSeconds || 300);
+  const progressRatio = isClosed
+    ? 0 // Full depletion when completed
+    : isScheduled
+    ? 1 // Full circle waiting to start
+    : Math.max(0, Math.min(1, remainingSeconds / duration));
+
   const strokeDashoffset = circumference * (1 - progressRatio);
 
-  const discountAmount = (chitAmount * currentLowestBidPct) / 100;
+  const displayBidPct = Number(currentLowestBidPct || 0);
+  const discountAmount = (chitAmount * displayBidPct) / 100;
   const prizeMoney = chitAmount - discountAmount;
 
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
+  const safeSeconds = Math.max(0, remainingSeconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
   const timerStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (!isLive) return;
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 0.4,
-          duration: 800,
+          toValue: 0.35,
+          duration: 750,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 800,
+          duration: 750,
           useNativeDriver: true,
         }),
       ])
     );
     pulse.start();
     return () => pulse.stop();
-  }, [pulseAnim]);
+  }, [pulseAnim, isLive]);
 
   const dialGold = theme.gold.accent;
   const dialMaroon = theme.maroon.primary;
   const dialDeep = theme.maroon.deep;
+
+  // Derive dynamic label and badge text
+  const badgeLabel = isClosed
+    ? 'AUCTION CONCLUDED'
+    : isScheduled
+    ? 'SCHEDULED SESSION'
+    : statusText || 'LIVE REVERSE AUCTION';
+
+  const dotColor = isClosed
+    ? theme.semantic.success
+    : isScheduled
+    ? '#F59E0B'
+    : remainingSeconds <= 30
+    ? theme.semantic.error
+    : '#10B981';
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -96,7 +129,7 @@ export const BidDial = ({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="url(#maroonArcGrad)"
+          stroke={isClosed ? 'rgba(16, 185, 129, 0.4)' : 'url(#maroonArcGrad)'}
           strokeWidth={strokeWidth}
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={strokeDashoffset}
@@ -119,26 +152,52 @@ export const BidDial = ({
 
       {/* Central metrics overlay */}
       <View style={styles.centerContent}>
-        <View style={[styles.statusTag, { backgroundColor: theme.maroon.primary + '18', borderColor: theme.maroon.primary + '30' }]}>
+        <View
+          style={[
+            styles.statusTag,
+            {
+              backgroundColor: isClosed
+                ? 'rgba(16, 185, 129, 0.12)'
+                : isScheduled
+                ? 'rgba(245, 158, 11, 0.12)'
+                : theme.maroon.primary + '18',
+              borderColor: isClosed
+                ? 'rgba(16, 185, 129, 0.35)'
+                : isScheduled
+                ? 'rgba(245, 158, 11, 0.35)'
+                : theme.maroon.primary + '30',
+            },
+          ]}
+        >
           <Animated.View
             style={[
               styles.liveDot,
               {
-                backgroundColor: remainingSeconds <= 10 ? theme.semantic.error : theme.gold.accent,
-                opacity: pulseAnim,
+                backgroundColor: dotColor,
+                opacity: isLive ? pulseAnim : 1,
               },
             ]}
           />
-          <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>
-            {statusText}
+          <Text
+            style={[
+              typography.caption,
+              {
+                color: isClosed ? theme.semantic.success : isScheduled ? '#D97706' : theme.maroon.primary,
+                fontWeight: '700',
+                fontSize: 10,
+                letterSpacing: 0.5,
+              },
+            ]}
+          >
+            {badgeLabel}
           </Text>
         </View>
 
-        <Text style={[typography.displayHero, { color: theme.text.primary, marginVertical: 2 }]}>
-          {currentLowestBidPct.toFixed(1)}%
+        <Text style={[typography.displayHero, { color: theme.text.primary, marginVertical: 2, fontSize: 32 }]}>
+          {displayBidPct.toFixed(1)}%
         </Text>
-        <Text style={[typography.caption, { color: theme.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5 }]}>
-          Lowest Bid Discount
+        <Text style={[typography.caption, { color: theme.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 9.5 }]}>
+          {isClosed ? 'Winning Bid Discount' : isScheduled ? 'Statutory Floor Discount' : 'Current Lowest Discount'}
         </Text>
 
         <View style={styles.payoutContainer}>
@@ -146,21 +205,50 @@ export const BidDial = ({
             ₹{prizeMoney.toLocaleString('en-IN')}
           </Text>
           <Text style={[typography.caption, { color: theme.text.muted, fontSize: 10 }]}>
-            Prize Money Payout
+            {isClosed ? 'Awarded Prize Money' : 'Prize Money Payout'}
           </Text>
         </View>
 
-        <View style={[styles.timerBadge, { backgroundColor: remainingSeconds <= 10 ? theme.semantic.errorBg : theme.surface.cardSubtle }]}>
+        {/* Dynamic Timing Pill */}
+        <View
+          style={[
+            styles.timerBadge,
+            {
+              backgroundColor: isClosed
+                ? 'rgba(16, 185, 129, 0.14)'
+                : isScheduled
+                ? 'rgba(245, 158, 11, 0.15)'
+                : remainingSeconds <= 30
+                ? theme.semantic.errorBg
+                : theme.surface.cardSubtle,
+            },
+          ]}
+        >
           <Text
             style={[
               typography.numericSmall,
               {
-                color: remainingSeconds <= 10 ? theme.semantic.error : theme.text.primary,
+                color: isClosed
+                  ? theme.semantic.success
+                  : isScheduled
+                  ? '#D97706'
+                  : remainingSeconds <= 30
+                  ? theme.semantic.error
+                  : theme.text.primary,
                 fontWeight: '700',
+                fontSize: 11.5,
               },
             ]}
           >
-            ⏱ {timerStr} left
+            {isClosed
+              ? `✓ Finalized ${closedAtText ? `· ${closedAtText}` : ''}`
+              : isScheduled
+              ? remainingSeconds > 0
+                ? `⏳ Starts in ${timerStr}`
+                : `📅 Scheduled ${scheduledAtText || ''}`
+              : remainingSeconds > 0
+              ? `⏱ ${timerStr} left`
+              : '⏱ Concluding session...'}
           </Text>
         </View>
       </View>

@@ -175,7 +175,11 @@ apiClient.interceptors.response.use(
       error.response?.data?.error ||
       error.message ||
       'Network request failed';
-    return Promise.reject(new Error(errorMsg));
+    const customError = new Error(errorMsg) as any;
+    customError.response = error.response;
+    customError.status = error.response?.status;
+    customError.code = error.code;
+    return Promise.reject(customError);
   }
 );
 

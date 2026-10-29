@@ -2,12 +2,12 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { query, withTransaction, logAuditEvent } from '../db.js';
-import { redis, auctionKey, auctionBidsKey } from '../redis.js';
+import { redis, auctionKey, auctionBidsKey, createLiveAuctionState, calculateAuctionTiming } from '../redis.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/errorHandler.js';
 import { validateBody, getPagination, paginatedResponse } from '../utils/validate.js';
 import { calculateDividend, toRupees } from '../services/dividend.js';
-import { broadcastBid, broadcastClose } from '../sockets/auctionSocket.js';
+import { broadcastBid, broadcastClose, broadcastStart } from '../sockets/auctionSocket.js';
 import { toPaise } from '../utils/money.js';
 import {
   claimOrGetTicket,
@@ -126,16 +126,52 @@ router.get(
 router.get(
   '/auctions/:id',
   asyncHandler(async (req, res) => {
-    const { rows } = await query('SELECT * FROM chit_auctions WHERE id = $1', [req.params.id]);
+    const { rows } = await query(
+      `SELECT ca.*, cg.name AS chit_group_name, cg.chit_amount, cg.foreman_commission_pct,
+              cg.duration_months,
+              s.ticket_number AS winning_ticket_number,
+              u.full_name AS winner_name
+       FROM chit_auctions ca
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       LEFT JOIN subscriptions s ON s.id = ca.winning_subscription_id
+       LEFT JOIN users u ON u.id = s.user_id
+       WHERE ca.id = $1`,
+      [req.params.id]
+    );
     if (!rows.length) throw new ApiError(404, 'Auction not found');
 
+    const auction = rows[0];
     let liveState = null;
-    if (rows[0].status === 'LIVE') {
+    if (auction.status === 'LIVE') {
       const raw = await redis.get(auctionKey(req.params.id));
       liveState = raw ? JSON.parse(raw) : null;
+      if (!liveState) {
+        liveState = createLiveAuctionState({
+          minBidPct: Number(auction.foreman_commission_pct || 5),
+          durationSeconds: auction.duration_seconds || 300,
+          startedAt: auction.started_at || auction.created_at || Date.now(),
+        });
+        await redis.set(auctionKey(req.params.id), JSON.stringify(liveState));
+      }
     }
 
-    res.json({ success: true, data: { ...rows[0], liveState } });
+    const timing = calculateAuctionTiming(liveState, auction);
+    if (liveState) {
+      liveState.remainingSeconds = timing.remainingSeconds;
+      liveState.durationSeconds = timing.durationSeconds;
+      liveState.startedAt = timing.startedAt;
+      liveState.elapsedSeconds = timing.elapsedSeconds;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...auction,
+        started_at: auction.started_at || timing.startedAt,
+        timing,
+        liveState,
+      },
+    });
   })
 );
 
@@ -229,33 +265,47 @@ router.post(
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     const { rows } = await query(
-      `UPDATE chit_auctions SET status = 'LIVE' WHERE id = $1 AND status = 'SCHEDULED' RETURNING *`,
+      `UPDATE chit_auctions
+       SET status = 'LIVE', started_at = COALESCE(started_at, now())
+       WHERE id = $1 AND status = 'SCHEDULED'
+       RETURNING *`,
       [req.params.id]
     );
     if (!rows.length) throw new ApiError(400, 'Auction not found or not in SCHEDULED state');
 
     const groupRes = await query(
-      'SELECT foreman_commission_pct FROM chit_groups WHERE id = $1',
+      'SELECT foreman_commission_pct, name, chit_amount FROM chit_groups WHERE id = $1',
       [rows[0].chit_group_id]
     );
     const minCommission = groupRes.rows.length ? Number(groupRes.rows[0].foreman_commission_pct) : 5;
+    const durationSeconds = rows[0].duration_seconds || 300;
 
-    await redis.set(
-      auctionKey(req.params.id),
-      JSON.stringify({
-        lowestBidPct: null,
-        highestBidPct: null,
-        minBidPct: minCommission,
-        bidderSubscriptionId: null,
-        updatedAt: Date.now(),
-      })
-    );
+    const initialLiveState = createLiveAuctionState({
+      minBidPct: minCommission,
+      durationSeconds,
+      startedAt: Date.now(),
+    });
+
+    await redis.set(auctionKey(req.params.id), JSON.stringify(initialLiveState));
     await redis.del(auctionBidsKey(req.params.id));
+
+    const io = req.app.get('io');
+    if (io) {
+      broadcastStart(io, rows[0].id, {
+        auction: rows[0],
+        chitGroupId: rows[0].chit_group_id,
+        monthNumber: rows[0].month_number,
+        groupName: groupRes.rows[0]?.name || 'Chit Group',
+        chitAmount: groupRes.rows[0]?.chit_amount,
+        startedAt: new Date(initialLiveState.startedAt).toISOString(),
+        durationSeconds,
+        remainingSeconds: durationSeconds,
+      });
+    }
 
     // Notify all active subscribers in this chit group
     try {
-      const chitGroupInfo = await query('SELECT name FROM chit_groups WHERE id = $1', [rows[0].chit_group_id]);
-      const groupName = chitGroupInfo.rows[0]?.name || 'Chit Group';
+      const groupName = groupRes.rows[0]?.name || 'Chit Group';
       await sendGroupNotification({
         chitGroupId: rows[0].chit_group_id,
         title: `Live Reverse Auction: ${groupName}`,
@@ -529,10 +579,12 @@ router.post(
     });
 
     const io = req.app.get('io');
+    const closedAtIso = new Date().toISOString();
     broadcastClose(io, auctionId, {
       winningBidPct: winningPct,
       winningSubscriptionId: state.bidderSubscriptionId,
       winningTicketNumber: state.bidderTicketNumber,
+      closedAt: closedAtIso,
     });
     // Emit atomic tickets expiration event to room
     if (io) {
@@ -545,6 +597,7 @@ router.post(
         auctionId,
         winningBidPct: winningPct,
         winningSubscriptionId: state.bidderSubscriptionId,
+        closedAt: closedAtIso,
         prizeAmount: result.prizeAmount,
         dividendPerSubscriber: result.dividend.perSubscriber.map((p) => ({
           subscriptionId: p.subscriptionId,

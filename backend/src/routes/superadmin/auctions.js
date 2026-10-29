@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { query, withTransaction, logAuditEvent } from '../../db.js';
-import { redis, auctionKey, auctionBidsKey } from '../../redis.js';
+import { redis, auctionKey, auctionBidsKey, createLiveAuctionState } from '../../redis.js';
 import { asyncHandler, ApiError } from '../../middleware/errorHandler.js';
 import { requireSuperAdmin } from '../../middleware/superadminAuth.js';
 import { validateBody, getPagination } from '../../utils/validate.js';
@@ -634,17 +634,15 @@ router.post(
 
     if (startImmediately) {
       const minCommission = Number(group.foreman_commission_pct || 5);
-      await redis.set(
-        auctionKey(newAuction.id),
-        JSON.stringify({
-          lowestBidPct: null,
-          highestBidPct: null,
-          minBidPct: minCommission,
-          bidderSubscriptionId: null,
-          updatedAt: Date.now(),
-        })
-      );
+      const durationSeconds = 300;
+      const initialLiveState = createLiveAuctionState({
+        minBidPct: minCommission,
+        durationSeconds,
+        startedAt: Date.now(),
+      });
+      await redis.set(auctionKey(newAuction.id), JSON.stringify(initialLiveState));
       await redis.del(auctionBidsKey(newAuction.id));
+      await query(`UPDATE chit_auctions SET started_at = now() WHERE id = $1`, [newAuction.id]);
 
       const io = req.app.get('io');
       if (io) {
@@ -655,6 +653,9 @@ router.post(
           groupName: group.name,
           chitAmount: group.chit_amount,
           maxParticipants: limitCount,
+          startedAt: new Date(initialLiveState.startedAt).toISOString(),
+          durationSeconds,
+          remainingSeconds: durationSeconds,
         });
       }
     }
@@ -710,22 +711,19 @@ router.post(
     }
 
     const { rows } = await query(
-      `UPDATE chit_auctions SET status = 'LIVE' WHERE id = $1 RETURNING *`,
+      `UPDATE chit_auctions SET status = 'LIVE', started_at = COALESCE(started_at, now()) WHERE id = $1 RETURNING *`,
       [id]
     );
     const updated = rows[0];
 
     const minCommission = Number(auction.foreman_commission_pct || 5);
-    await redis.set(
-      auctionKey(id),
-      JSON.stringify({
-        lowestBidPct: null,
-        highestBidPct: null,
-        minBidPct: minCommission,
-        bidderSubscriptionId: null,
-        updatedAt: Date.now(),
-      })
-    );
+    const durationSeconds = 300;
+    const initialLiveState = createLiveAuctionState({
+      minBidPct: minCommission,
+      durationSeconds,
+      startedAt: Date.now(),
+    });
+    await redis.set(auctionKey(id), JSON.stringify(initialLiveState));
     await redis.del(auctionBidsKey(id));
 
     const io = req.app.get('io');
@@ -736,6 +734,9 @@ router.post(
         monthNumber: auction.month_number,
         groupName: auction.group_name,
         chitAmount: auction.chit_amount,
+        startedAt: new Date(initialLiveState.startedAt).toISOString(),
+        durationSeconds,
+        remainingSeconds: durationSeconds,
       });
     }
 

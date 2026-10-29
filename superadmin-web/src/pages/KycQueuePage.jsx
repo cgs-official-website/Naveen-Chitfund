@@ -44,7 +44,7 @@ export const KycQueuePage = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
             DPDP Compliant Masking
           </span>
         </div>
@@ -52,7 +52,7 @@ export const KycQueuePage = () => {
 
       {users.length === 0 && !isLoading ? (<EmptyState title="All Caught Up!" description="There are currently no pending subscriber KYC applications awaiting manual review." icon={UserCheck}/>) : (<div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6">
           {/* Left Column: Queue List (5 cols on lg) */}
-          <div className="lg:col-span-5 bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4 sm:p-4.5 space-y-3 backdrop-blur-md">
+          <div className="lg:col-span-5 bg-white/95 dark:bg-[#150A11]/95 border border-stone-200/90 dark:border-maroon-900/50 rounded-2xl shadow-sm p-4 sm:p-5 space-y-3 backdrop-blur-md">
             <h3 className="text-xs font-black text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2">
               Pending Applications ({users.length})
             </h3>

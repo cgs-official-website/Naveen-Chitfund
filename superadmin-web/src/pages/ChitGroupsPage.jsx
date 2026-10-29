@@ -136,7 +136,7 @@ export const ChitGroupsPage = () => {
           >
             <Plus className="w-4 h-4 stroke-[2.5]" /> Create Chit Group
           </button>
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-500/10 text-gold-600 dark:text-gold-300 border border-gold-500/30">
+          <span className="text-xs font-bold text-gold-600 dark:text-gold-300">
             Govt Sanctioned ROSCA Pools
           </span>
         </div>
