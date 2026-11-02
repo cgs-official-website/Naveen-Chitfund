@@ -43,6 +43,8 @@ dist/
 test-results/
 playwright-report/
 *.apk
+*.keystore
+*.jks
 emulator_*.png
 
 # Root local reports & scripts
