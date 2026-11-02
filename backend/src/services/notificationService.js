@@ -46,14 +46,22 @@ async function sendExpoPushNotifications(pushTokens, { title, body, data = {} })
  * Dispatch a notification to a specific user.
  * Writes to notifications table and dispatches push alert to registered devices.
  */
-export async function sendUserNotification({ userId, title, body, category = 'SYSTEM', data = {} }) {
+export async function sendUserNotification({ io, userId, title, body, category = 'SYSTEM', data = {} }) {
   try {
     // 1. Insert into notifications table
-    await query(
+    const { rows } = await query(
       `INSERT INTO notifications (user_id, title, body, category, data)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
       [userId, title, body, category, JSON.stringify(data)]
     );
+    const createdNotif = rows[0];
+
+    // Real-time WebSocket dispatch to subscriber
+    if (io) {
+      io.to(`user:${userId}`).emit('notification:new', createdNotif);
+      io.emit('notification:new', { ...createdNotif, targetUserId: userId });
+    }
 
     // 2. Fetch active push tokens
     const { rows: tokenRows } = await query(
@@ -63,7 +71,7 @@ export async function sendUserNotification({ userId, title, body, category = 'SY
 
     if (tokenRows.length > 0) {
       const tokens = tokenRows.map((r) => r.token);
-      await sendExpoPushNotifications(tokens, { title, body, data: { ...data, category } });
+      await sendExpoPushNotifications(tokens, { title, body, data: { ...data, category, notificationId: createdNotif?.id } });
     }
   } catch (err) {
     console.error('[NotificationService] Error sending user notification:', err.message);
@@ -73,16 +81,17 @@ export async function sendUserNotification({ userId, title, body, category = 'SY
 /**
  * Dispatch notification to all active subscribers in a chit group.
  */
-export async function sendGroupNotification({ chitGroupId, title, body, category = 'AUCTION', data = {} }) {
+export async function sendGroupNotification({ io, chitGroupId, title, body, category = 'AUCTION', data = {} }) {
   try {
-    // Fetch all user IDs in this chit group
+    // Fetch all subscriber user IDs enrolled in this chit group
     const { rows: members } = await query(
-      `SELECT DISTINCT user_id FROM subscriptions WHERE chit_group_id = $1 AND status = 'ACTIVE'`,
+      `SELECT DISTINCT user_id FROM subscriptions WHERE chit_group_id = $1`,
       [chitGroupId]
     );
 
     for (const member of members) {
       await sendUserNotification({
+        io,
         userId: member.user_id,
         title,
         body,

@@ -108,7 +108,21 @@ router.post(
         b.dividendDistributionPolicy,
       ]
     );
-    res.status(201).json({ success: true, data: rows[0] });
+    const newGroup = rows[0];
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('chit_group:created', newGroup);
+        io.emit('notification:new', {
+          title: 'New Chit Scheme Launched',
+          body: `New chit group "${b.name}" (₹${Number(b.chitAmount).toLocaleString('en-IN')}) is now open for enrollment!`,
+        });
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+
+    res.status(201).json({ success: true, data: newGroup });
   })
 );
 

@@ -14,6 +14,7 @@ import { useTheme } from '../core/theme/ThemeProvider';
 import { useBreakpoint } from '../core/responsive/useBreakpoint';
 import { useAppStore } from '../store/useAppStore';
 import { apiClient, getStoredToken, setAuthToken } from '../core/networking/apiClient';
+import { getAuctionSocket } from '../core/networking/socketClient';
 import { Alert } from '../core/components/CustomAlertModal';
 
 // Screens
@@ -93,6 +94,43 @@ export const RootNavigator = () => {
       }
     }
     restoreSession();
+  }, []);
+
+  // Global real-time socket events for app updates and notifications
+  useEffect(() => {
+    const socket = getAuctionSocket();
+
+    const handleGroupCreated = () => {
+      useAppStore.getState().fetchAvailableGroups();
+    };
+
+    const handleNotificationNew = (data) => {
+      useAppStore.getState().fetchServerNotifications();
+      if (data?.title) {
+        Alert.alert(data.title, data.body || '');
+      }
+    };
+
+    const handleAuctionRefresh = () => {
+      useAppStore.getState().fetchCurrentAuction();
+      useAppStore.getState().fetchActiveChits();
+    };
+
+    socket.on('chit_group:created', handleGroupCreated);
+    socket.on('notification:new', handleNotificationNew);
+    socket.on('auction:started', handleAuctionRefresh);
+    socket.on('auction_started', handleAuctionRefresh);
+    socket.on('auction:closed', handleAuctionRefresh);
+    socket.on('auction_closed', handleAuctionRefresh);
+
+    return () => {
+      socket.off('chit_group:created', handleGroupCreated);
+      socket.off('notification:new', handleNotificationNew);
+      socket.off('auction:started', handleAuctionRefresh);
+      socket.off('auction_started', handleAuctionRefresh);
+      socket.off('auction:closed', handleAuctionRefresh);
+      socket.off('auction_closed', handleAuctionRefresh);
+    };
   }, []);
 
   const isForeman = user?.role === 'admin';

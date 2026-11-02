@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,16 @@ import {
   RefreshControl,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../core/theme/ThemeProvider';
 import { Card } from '../../core/components/Card';
 import { Button } from '../../core/components/Button';
 import { TransparencyBadge } from '../../core/components/TransparencyBadge';
 import { OfflineBanner } from '../../core/components/OfflineBanner';
+import { Alert } from '../../core/components/CustomAlertModal';
 import { useAppStore } from '../../store/useAppStore';
+import { getAuctionSocket } from '../../core/networking/socketClient';
 import {
   TrendingUp,
   AlertCircle,
@@ -27,6 +30,7 @@ import {
   CreditCard,
   Compass,
   FileText,
+  Check,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -44,6 +48,10 @@ export const HomeScreen = ({
     activeChits,
     activeChitsLoading,
     fetchActiveChits,
+    availableGroups,
+    availableGroupsLoading,
+    fetchAvailableGroups,
+    joinChitGroup,
     currentAuction,
     activeTicket,
     fetchCurrentAuction,
@@ -53,14 +61,52 @@ export const HomeScreen = ({
     switchRole,
   } = useAppStore();
 
+  const [joiningGroupId, setJoiningGroupId] = useState(null);
+
   useEffect(() => {
     fetchActiveChits();
     fetchCurrentAuction();
+    fetchAvailableGroups();
+
+    const socket = getAuctionSocket();
+    const handleRefresh = () => {
+      fetchActiveChits();
+      fetchAvailableGroups();
+      fetchCurrentAuction();
+    };
+
+    socket.on('chit_group:created', handleRefresh);
+    socket.on('auction:started', handleRefresh);
+    socket.on('auction:closed', handleRefresh);
+
+    return () => {
+      socket.off('chit_group:created', handleRefresh);
+      socket.off('auction:started', handleRefresh);
+      socket.off('auction:closed', handleRefresh);
+    };
   }, [user?.id]);
 
   const totalPortfolioValue = activeChits.reduce((acc, c) => acc + (c.chit_amount || 0), 0);
   const totalDividendEarned = activeChits.reduce((acc, c) => acc + (c.total_dividend_earned || 0), 0);
   const nextChitDue = activeChits[0];
+
+  const recentGroups = [...(availableGroups || [])]
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 3);
+
+  const handleJoinGroup = async (group) => {
+    try {
+      setJoiningGroupId(group.id);
+      const res = await joinChitGroup(group);
+      if (res.success) {
+        Alert.alert('Group Joined!', `You have successfully joined ${group.name}!`);
+      } else {
+        Alert.alert('Unable to Join', res.error || 'Failed to join chit group. Please check your eligibility.');
+      }
+    } finally {
+      setJoiningGroupId(null);
+    }
+  };
 
   return (
     <ScrollView
@@ -69,8 +115,12 @@ export const HomeScreen = ({
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={activeChitsLoading}
-          onRefresh={() => { fetchActiveChits(); fetchCurrentAuction(); }}
+          refreshing={activeChitsLoading || availableGroupsLoading}
+          onRefresh={() => {
+            fetchActiveChits();
+            fetchCurrentAuction();
+            fetchAvailableGroups();
+          }}
           colors={[theme.maroon.primary]}
           tintColor={theme.maroon.primary}
         />
@@ -273,8 +323,8 @@ export const HomeScreen = ({
         </Card>
       )}
 
-      {/* Live / Scheduled Auction Banner */}
-      {currentAuction && (
+      {/* Live / Scheduled Auction Banner (active or scheduled only) */}
+      {currentAuction && (currentAuction.status === 'IN_PROGRESS' || currentAuction.status === 'SCHEDULED') && (
         <Card variant="elevated" style={[styles.auctionCard, { borderColor: theme.gold.accent }]}>
           <View style={styles.auctionHeader}>
             <View style={[styles.liveChip, { backgroundColor: currentAuction.status === 'IN_PROGRESS' ? theme.semantic.errorBg : 'rgba(212, 175, 55, 0.15)' }]}>
@@ -348,15 +398,15 @@ export const HomeScreen = ({
         </Card>
       )}
 
-      {/* Active Subscriptions Section */}
+      {/* Recent Groups Section (Last 3 created chit groups only) */}
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={[typography.h2, { color: theme.text.primary, fontSize: 18 }]}>
-            Your Subscriptions
+            Recent Groups
           </Text>
           <View style={[styles.badgeCount, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#D4AF37' }}>
-              {activeChits.length}
+              {recentGroups.length}
             </Text>
           </View>
         </View>
@@ -366,22 +416,22 @@ export const HomeScreen = ({
           activeOpacity={0.7}
         >
           <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>
-            Explore Chits
+            Explore All
           </Text>
           <ChevronRight size={14} color={theme.maroon.primary} />
         </TouchableOpacity>
       </View>
 
-      {activeChits.length === 0 ? (
+      {recentGroups.length === 0 ? (
         <Card style={styles.emptyCard}>
           <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(212, 175, 55, 0.15)' }]}>
             <Coins size={32} color="#D4AF37" />
           </View>
           <Text style={[typography.h3, { color: theme.text.primary, marginTop: 12 }]}>
-            No Active Subscriptions
+            No Recent Groups
           </Text>
           <Text style={[typography.caption, { color: theme.text.secondary, marginTop: 4, textAlign: 'center', lineHeight: 18 }]}>
-            Start your journey with government-approved chit schemes to build savings and earn monthly dividends.
+            Newly created chit schemes by the administrator will appear here for you to join.
           </Text>
           <Button
             title="Explore Available Chits"
@@ -392,64 +442,159 @@ export const HomeScreen = ({
           />
         </Card>
       ) : (
-        activeChits.map((chit) => (
-          <Card key={chit.id} style={styles.chitCard}>
-            <View style={styles.chitCardTop}>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[typography.h3, { color: theme.text.primary, fontWeight: '700' }]}>
-                    {chit.chit_group_name}
+        recentGroups.map((group) => {
+          const joined = activeChits.some((c) => c.chit_group_id === group.id);
+          const isJoining = joiningGroupId === group.id;
+          const vacantSlots =
+            group.vacant_slots !== undefined
+              ? group.vacant_slots
+              : Math.max(0, (group.duration_months || 0) - (group.subscriber_count || 0));
+          const installment =
+            group.installment_amount ||
+            (group.duration_months ? Math.round(group.chit_amount / group.duration_months) : 0);
+
+          return (
+            <Card key={group.id} style={styles.chitCard}>
+              <View style={styles.chitCardTop}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Text style={[typography.h3, { color: theme.text.primary, fontWeight: '700' }]}>
+                      {group.name}
+                    </Text>
+                    {group.registrar_state_code ? (
+                      <View style={[styles.chitTypeBadge, { backgroundColor: 'rgba(56, 0, 12, 0.08)' }]}>
+                        <Text style={{ fontSize: 9.5, color: theme.maroon.primary, fontWeight: '700' }}>
+                          {group.registrar_state_code}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={[typography.numericLarge, { color: theme.maroon.primary, marginTop: 4, fontSize: 20 }]}>
+                    ₹{Number(group.chit_amount || 0).toLocaleString('en-IN')}
                   </Text>
-                  <View style={[styles.chitTypeBadge, { backgroundColor: 'rgba(56, 0, 12, 0.08)' }]}>
-                    <Text style={{ fontSize: 9.5, color: theme.maroon.primary, fontWeight: '700' }}>
-                      {chit.category || 'Standard'}
+                </View>
+
+                {joined ? (
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderColor: 'rgba(16, 185, 129, 0.35)',
+                      },
+                    ]}
+                  >
+                    <Check size={12} color="#10B981" />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', marginLeft: 4 }}>
+                      JOINED
                     </Text>
                   </View>
-                </View>
-                <Text style={[typography.numericLarge, { color: theme.maroon.primary, marginTop: 4, fontSize: 20 }]}>
-                  ₹{chit.chit_amount.toLocaleString('en-IN')}
-                </Text>
+                ) : vacantSlots <= 0 ? (
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor: 'rgba(107, 114, 128, 0.12)',
+                        borderColor: 'rgba(107, 114, 128, 0.3)',
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#6B7280' }}>
+                      FULL
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                        borderColor: 'rgba(212, 175, 55, 0.4)',
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#D4AF37' }}>
+                      OPEN
+                    </Text>
+                  </View>
+                )}
               </View>
-              <TouchableOpacity
-                onPress={() => onNavigateToChitDetail(chit.chit_group_id)}
-                style={[styles.arrowCircle, { backgroundColor: theme.surface.cardSubtle }]}
-                activeOpacity={0.7}
+
+              {/* Stats Summary Grid */}
+              <View
+                style={[
+                  styles.groupStatsRow,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#FBF7F0',
+                    borderColor: theme.surface.border,
+                  },
+                ]}
               >
-                <ArrowUpRight size={18} color={theme.maroon.primary} />
-              </TouchableOpacity>
-            </View>
+                <View style={styles.groupStatItem}>
+                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>
+                    Monthly Due
+                  </Text>
+                  <Text style={[typography.numericSmall, { color: theme.text.primary, fontWeight: '700', marginTop: 2 }]}>
+                    ₹{Number(installment).toLocaleString('en-IN')}
+                  </Text>
+                </View>
 
-            <TransparencyBadge
-              status={chit.subscriber_status}
-              ticketNumber={chit.ticket_number}
-              registrarState="Registered — Telangana T-Chits"
-              onPressDocs={() => onOpenDocs(chit.chit_group_name)}
-              style={{ marginTop: 12 }}
-            />
+                <View style={[styles.statDivider, { backgroundColor: theme.surface.border }]} />
 
-            <View style={{ marginTop: 14 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 11 }]}>
-                  Installment Progress
-                </Text>
-                <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '600', fontSize: 11 }]}>
-                  {chit.installments_paid} of {chit.total_installments} Months ({Math.round((chit.installments_paid / chit.total_installments) * 100)}%)
-                </Text>
+                <View style={styles.groupStatItem}>
+                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>
+                    Duration
+                  </Text>
+                  <Text style={[typography.numericSmall, { color: theme.text.primary, fontWeight: '700', marginTop: 2 }]}>
+                    {group.duration_months} Mos
+                  </Text>
+                </View>
+
+                <View style={[styles.statDivider, { backgroundColor: theme.surface.border }]} />
+
+                <View style={styles.groupStatItem}>
+                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>
+                    Vacant Slots
+                  </Text>
+                  <Text
+                    style={[
+                      typography.numericSmall,
+                      {
+                        color: vacantSlots > 0 ? '#10B981' : theme.semantic.error,
+                        fontWeight: '700',
+                        marginTop: 2,
+                      },
+                    ]}
+                  >
+                    {vacantSlots} Left
+                  </Text>
+                </View>
               </View>
-              <View style={[styles.progressTrack, { backgroundColor: theme.surface.border }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      backgroundColor: theme.gold.accent,
-                      width: `${(chit.installments_paid / chit.total_installments) * 100}%`,
-                    },
-                  ]}
+
+              {/* Action Buttons */}
+              <View style={styles.groupActionRow}>
+                <Button
+                  title="View Details"
+                  size="sm"
+                  variant="outline"
+                  onPress={() => onNavigateToChitDetail(group.id)}
+                  style={{ flex: 1 }}
                 />
+
+                {!joined && (
+                  <Button
+                    title={isJoining ? 'Joining...' : 'Join Group'}
+                    size="sm"
+                    variant="primary"
+                    disabled={isJoining || vacantSlots <= 0}
+                    onPress={() => handleJoinGroup(group)}
+                    style={{ flex: 1 }}
+                  />
+                )}
               </View>
-            </View>
-          </Card>
-        ))
+            </Card>
+          );
+        })
       )}
     </ScrollView>
   );
@@ -719,6 +864,40 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 3,
+  },
+
+  // ── Recent Groups Badges & Actions ──
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  groupStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  groupStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 22,
+  },
+  groupActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
   },
 
   // ── Empty State ──

@@ -43,6 +43,7 @@ dist/
 test-results/
 playwright-report/
 *.apk
+emulator_*.png
 
 # Root local reports & scripts
 PROJECT_*.md

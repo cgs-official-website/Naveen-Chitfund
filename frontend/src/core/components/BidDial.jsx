@@ -76,7 +76,7 @@ export const BidDial = ({
   const badgeLabel = isClosed
     ? 'AUCTION CONCLUDED'
     : isScheduled
-    ? 'SCHEDULED SESSION'
+    ? 'FROZEN · SCHEDULED'
     : statusText || 'LIVE REVERSE AUCTION';
 
   const dotColor = isClosed
@@ -243,9 +243,7 @@ export const BidDial = ({
             {isClosed
               ? `✓ Finalized ${closedAtText ? `· ${closedAtText}` : ''}`
               : isScheduled
-              ? remainingSeconds > 0
-                ? `⏳ Starts in ${timerStr}`
-                : `📅 Scheduled ${scheduledAtText || ''}`
+              ? `❄️ FROZEN · ${scheduledAtText ? `Starts ${scheduledAtText}` : 'Awaiting Foreman'}`
               : remainingSeconds > 0
               ? `⏱ ${timerStr} left`
               : '⏱ Concluding session...'}

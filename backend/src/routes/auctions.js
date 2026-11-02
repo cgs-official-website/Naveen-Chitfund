@@ -16,6 +16,7 @@ import {
   expireAuctionTickets,
 } from '../services/ticketService.js';
 import { sendGroupNotification } from '../services/notificationService.js';
+import { finalizeAuctionClose } from '../services/auctionCloseService.js';
 
 const router = express.Router();
 
@@ -192,7 +193,7 @@ router.post(
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('auction:application_submitted', {
+      const payload = {
         auctionId,
         ticketId: ticket.id,
         userId,
@@ -200,7 +201,11 @@ router.post(
         fullName: ticket.full_name,
         ticketCode: ticket.ticket_code,
         status: ticket.status,
-      });
+      };
+      io.emit('auction:application_submitted', payload);
+      io.emit('auction:token_applied', payload);
+      io.to(`auction:${auctionId}`).emit('auction:application_submitted', payload);
+      io.to(`auction:${auctionId}`).emit('auction:token_applied', payload);
     }
 
     res.json({
@@ -225,6 +230,23 @@ router.post(
       userId,
       req.ip
     );
+
+    const io = req.app.get('io');
+    if (io && ticket) {
+      const payload = {
+        auctionId,
+        ticketId: ticket.id,
+        userId,
+        ticketNumber: ticket.ticket_number,
+        fullName: ticket.full_name,
+        ticketCode: ticket.ticket_code,
+        status: ticket.status,
+      };
+      io.emit('auction:application_submitted', payload);
+      io.emit('auction:token_applied', payload);
+      io.to(`auction:${auctionId}`).emit('auction:application_submitted', payload);
+      io.to(`auction:${auctionId}`).emit('auction:token_applied', payload);
+    }
 
     res.json({ success: true, data: ticket });
   })
@@ -466,144 +488,18 @@ router.post(
     const auction = auctionRes.rows[0];
     if (auction.status !== 'LIVE') throw new ApiError(400, 'Auction is not live');
 
-    const rawState = await redis.get(auctionKey(auctionId));
-    const state = rawState ? JSON.parse(rawState) : null;
-    const winningPct = state?.highestBidPct ?? state?.lowestBidPct ?? null;
-    if (!state || winningPct === null) {
-      throw new ApiError(400, 'No bids placed — cannot close auction without a winner');
-    }
-
-    const groupRes = await query('SELECT * FROM chit_groups WHERE id = $1', [auction.chit_group_id]);
-    const group = groupRes.rows[0];
-
-    const result = await withTransaction(async (client) => {
-      // 1. Persist auction result
-      await client.query(
-        `UPDATE chit_auctions
-         SET status = 'COMPLETED', winning_bid_pct = $1, winning_subscription_id = $2, closed_at = now()
-         WHERE id = $3`,
-        [winningPct, state.bidderSubscriptionId, auctionId]
-      );
-
-      // 2. Mark winner as Successful Bidder (SB) under § 31 Chit Funds Act 1982
-      await client.query(
-        `UPDATE subscriptions SET subscriber_status = 'SB', prized_month = $1 WHERE id = $2`,
-        [auction.month_number, state.bidderSubscriptionId]
-      );
-
-      // 3. Initialize pending surety verification record
-      await client.query(
-        `INSERT INTO sureties (subscription_id, auction_id, surety_type, status)
-         VALUES ($1, $2, 'CO_GUARANTORS', 'PENDING')
-         ON CONFLICT DO NOTHING`,
-        [state.bidderSubscriptionId, auctionId]
-      );
-
-      // 4. ATOMIC TICKET EXPIRATION:
-      // Winner's ticket becomes 'USED', all other active tickets become 'EXPIRED'
-      await expireAuctionTickets(client, auctionId, state.bidderSubscriptionId);
-
-      // 5. Pull active subscriptions for dividend calc
-      const subsRes = await client.query(
-        `SELECT id AS subscription_id, ticket_number, subscriber_status
-         FROM subscriptions WHERE chit_group_id = $1`,
-        [auction.chit_group_id]
-      );
-      const subscriptions = subsRes.rows.map((r) => ({
-        subscriptionId: r.subscription_id,
-        ticketNumber: r.ticket_number,
-        subscriberStatus: r.subscriber_status,
-      }));
-
-      const dividend = calculateDividend({
-        chitAmount: group.chit_amount,
-        winningBidPct: winningPct,
-        foremanCommissionPct: group.foreman_commission_pct,
-        policy: group.dividend_distribution_policy,
-        subscriptions,
-        winningSubscriptionId: state.bidderSubscriptionId,
-      });
-
-      // 6. Commission ledger entry with amount_paise
-      await client.query(
-        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
-         VALUES ($1, NULL, 'COMMISSION', $2, $3, $4)`,
-        [
-          auction.chit_group_id,
-          toRupees(dividend.commissionPaise),
-          dividend.commissionPaise,
-          auctionId,
-        ]
-      );
-
-      // 7. Prize payout ledger entry with amount_paise
-      const chitAmountPaise = toPaise(Number(group.chit_amount));
-      const bidDiscountPaise = Math.round((chitAmountPaise * Number(winningPct)) / 100);
-      const prizeAmountPaise = chitAmountPaise - bidDiscountPaise;
-      await client.query(
-        `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
-         VALUES ($1, $2, 'PRIZE_PAYOUT', $3, $4, $5)`,
-        [
-          auction.chit_group_id,
-          state.bidderSubscriptionId,
-          toRupees(prizeAmountPaise),
-          prizeAmountPaise,
-          auctionId,
-        ]
-      );
-
-      // 8. Dividend ledger entries with amount_paise — one per eligible subscriber
-      for (const p of dividend.perSubscriber) {
-        await client.query(
-          `INSERT INTO ledger_entries (chit_group_id, subscription_id, entry_type, amount, amount_paise, auction_id)
-           VALUES ($1, $2, 'DIVIDEND', $3, $4, $5)`,
-          [auction.chit_group_id, p.subscriptionId, toRupees(p.amountPaise), p.amountPaise, auctionId]
-        );
-      }
-
-      // 9. Log audit event
-      await logAuditEvent(client, {
-        eventType: 'AUCTION_CLOSED',
-        actorId: req.user.userId,
-        entityType: 'chit_auctions',
-        entityId: auctionId,
-        metadata: {
-          winning_bid_pct: winningPct,
-          winner_subscription_id: state.bidderSubscriptionId,
-          prize_amount_paise: prizeAmountPaise,
-          total_distributed_paise: dividend.totalDistributedPaise,
-        },
-      });
-
-      return { dividend, prizeAmount: toRupees(prizeAmountPaise) };
-    });
-
     const io = req.app.get('io');
-    const closedAtIso = new Date().toISOString();
-    broadcastClose(io, auctionId, {
-      winningBidPct: winningPct,
-      winningSubscriptionId: state.bidderSubscriptionId,
-      winningTicketNumber: state.bidderTicketNumber,
-      closedAt: closedAtIso,
+    const result = await finalizeAuctionClose({
+      auctionId,
+      actorId: req.user.userId,
+      actorType: 'USER',
+      forceClosed: false,
+      io,
     });
-    // Emit atomic tickets expiration event to room
-    if (io) {
-      io.to(`auction:${auctionId}`).emit('auction:tickets_expired', { auctionId });
-    }
 
     res.json({
       success: true,
-      data: {
-        auctionId,
-        winningBidPct: winningPct,
-        winningSubscriptionId: state.bidderSubscriptionId,
-        closedAt: closedAtIso,
-        prizeAmount: result.prizeAmount,
-        dividendPerSubscriber: result.dividend.perSubscriber.map((p) => ({
-          subscriptionId: p.subscriptionId,
-          amount: toRupees(p.amountPaise),
-        })),
-      },
+      data: result,
     });
   })
 );

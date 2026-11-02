@@ -45,6 +45,8 @@ function broadcastBid(io, auctionId, payload) {
   const data = { auctionId, ...payload };
   io.to(room).emit('bid_placed', data);
   io.to(room).emit('auction:bid', data);
+  io.emit('bid_placed', data);
+  io.emit('auction:bid', data);
 }
 
 function broadcastClose(io, auctionId, payload) {

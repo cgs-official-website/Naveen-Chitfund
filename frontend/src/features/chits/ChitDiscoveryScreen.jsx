@@ -17,6 +17,7 @@ import { Input } from '../../core/components/Input';
 import { Alert } from '../../core/components/CustomAlertModal';
 import { TransparencyBadge } from '../../core/components/TransparencyBadge';
 import { useAppStore } from '../../store/useAppStore';
+import { getAuctionSocket } from '../../core/networking/socketClient';
 import {
   Search,
   Calendar,
@@ -40,7 +41,14 @@ export const ChitDiscoveryScreen = ({
   onOpenDocs,
 }) => {
   const { theme, typography, isDark } = useTheme();
-  const { availableGroups, availableGroupsLoading, fetchAvailableGroups, joinChitGroup } = useAppStore();
+  const {
+    availableGroups,
+    availableGroupsLoading,
+    fetchAvailableGroups,
+    joinChitGroup,
+    activeChits,
+    fetchActiveChits,
+  } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState('ALL');
@@ -53,21 +61,40 @@ export const ChitDiscoveryScreen = ({
 
   useEffect(() => {
     fetchAvailableGroups();
+    fetchActiveChits();
+
+    const socket = getAuctionSocket();
+    const handleGroupRefresh = () => {
+      fetchAvailableGroups();
+      fetchActiveChits();
+    };
+
+    socket.on('chit_group:created', handleGroupRefresh);
+    socket.on('auction:started', handleGroupRefresh);
+    socket.on('auction:closed', handleGroupRefresh);
+
+    return () => {
+      socket.off('chit_group:created', handleGroupRefresh);
+      socket.off('auction:started', handleGroupRefresh);
+      socket.off('auction:closed', handleGroupRefresh);
+    };
   }, []);
 
-  const filteredGroups = (availableGroups || []).filter((g) => {
-    const nameStr = (g.name || '').toLowerCase();
-    const stateStr = (g.registrar_state_code || '').toLowerCase();
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !searchQuery || nameStr.includes(q) || stateStr.includes(q);
-    const matchesState =
-      selectedState === 'ALL' || (g.registrar_state_code || '').includes(selectedState);
-    const matchesTenure =
-      selectedTenure === 'ALL' || String(g.duration_months) === selectedTenure;
-    const matchesVacant = !onlyVacant || (g.vacant_slots === undefined ? true : g.vacant_slots > 0);
+  const filteredGroups = (availableGroups || [])
+    .filter((g) => {
+      const nameStr = (g.name || '').toLowerCase();
+      const stateStr = (g.registrar_state_code || '').toLowerCase();
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || nameStr.includes(q) || stateStr.includes(q);
+      const matchesState =
+        selectedState === 'ALL' || (g.registrar_state_code || '').includes(selectedState);
+      const matchesTenure =
+        selectedTenure === 'ALL' || String(g.duration_months) === selectedTenure;
+      const matchesVacant = !onlyVacant || (g.vacant_slots === undefined ? true : g.vacant_slots > 0);
 
-    return matchesSearch && matchesState && matchesTenure && matchesVacant;
-  });
+      return matchesSearch && matchesState && matchesTenure && matchesVacant;
+    })
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   const handleConfirmJoin = async (group) => {
     setJoinLoading(true);
@@ -75,6 +102,8 @@ export const ChitDiscoveryScreen = ({
     setJoinLoading(false);
     if (res.success) {
       setJoinedSuccess(true);
+      fetchActiveChits();
+      fetchAvailableGroups();
       setTimeout(() => {
         setJoinedSuccess(false);
         setSelectedGroupToJoin(null);
@@ -94,7 +123,10 @@ export const ChitDiscoveryScreen = ({
       refreshControl={
         <RefreshControl
           refreshing={availableGroupsLoading}
-          onRefresh={fetchAvailableGroups}
+          onRefresh={() => {
+            fetchAvailableGroups();
+            fetchActiveChits();
+          }}
           colors={[theme.maroon.primary]}
           tintColor={theme.maroon.primary}
         />
@@ -340,130 +372,188 @@ export const ChitDiscoveryScreen = ({
             />
           </Card>
         ) : (
-          filteredGroups.map((group) => (
-            <Card key={group.id} style={styles.groupCard}>
-              {/* Vacant Slot Gold Ribbon */}
-              {group.vacant_slots > 0 && (
-                <View
-                  style={[
-                    styles.vacantHeader,
-                    {
-                      backgroundColor: 'rgba(212, 175, 55, 0.15)',
-                      borderColor: 'rgba(212, 175, 55, 0.45)',
-                    },
-                  ]}
-                >
-                  <Coins size={12} color="#D4AF37" />
-                  <Text style={styles.vacantHeaderText}>
-                    {group.vacant_slots} VACANT SLOT{group.vacant_slots > 1 ? 'S' : ''} · IMMEDIATE BIDDING
-                  </Text>
-                </View>
-              )}
+          filteredGroups.map((group) => {
+            const isSubscribed = (activeChits || []).some((c) => c.chit_group_id === group.id);
+            const vacantSlots =
+              group.vacant_slots !== undefined
+                ? group.vacant_slots
+                : Math.max(0, (group.duration_months || 0) - (group.subscriber_count || 0));
 
-              {/* Title & Valuation */}
-              <View style={styles.cardHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.h3, { color: theme.text.primary, fontWeight: '700', fontSize: 17 }]}>
-                    {group.name}
-                  </Text>
-                  <Text style={[typography.displayLarge, { color: theme.maroon.primary, marginTop: 4, fontSize: 24 }]}>
-                    ₹{group.chit_amount.toLocaleString('en-IN')}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.tenureBadge,
-                    {
-                      backgroundColor: 'rgba(212, 175, 55, 0.12)',
-                      borderColor: 'rgba(212, 175, 55, 0.35)',
-                    },
-                  ]}
-                >
-                  <Calendar size={13} color="#D4AF37" />
-                  <Text style={styles.tenureBadgeText}>
-                    {group.duration_months} Months
-                  </Text>
-                </View>
-              </View>
-
-              {/* Stats Grid */}
-              <View style={[styles.statsGrid, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
-                <View style={styles.statCell}>
-                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Monthly Due</Text>
-                  <Text style={[typography.numericMedium, { color: theme.text.primary, fontWeight: '700', fontSize: 15, marginTop: 2 }]}>
-                    ₹{group.installment_amount.toLocaleString('en-IN')}
-                  </Text>
-                </View>
-                <View style={styles.statCell}>
-                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Dividend Policy</Text>
-                  <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginTop: 2 }]}>
-                    {group.dividend_distribution_policy === 'NON_PRIZED_ONLY' ? 'Non-Prized' : 'All Members'}
-                  </Text>
-                </View>
-                <View style={styles.statCell}>
-                  <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Security</Text>
-                  <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '700', marginTop: 2 }]}>
-                    {group.security_instrument}
-                  </Text>
-                </View>
-              </View>
-
-              {/* State Transparency Badge */}
-              <TransparencyBadge
-                registrarState={group.registrar_state_code}
-                onPressDocs={() => onOpenDocs(group.name)}
-                style={{ marginTop: 12 }}
-              />
-
-              {/* Past Dividends Chips */}
-              {group.past_dividends && group.past_dividends.length > 0 && (
-                <View style={[styles.dividendBox, { borderColor: theme.surface.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TrendingUp size={12} color={theme.semantic.success} />
-                    <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 5, fontSize: 11 }]}>
-                      Past Auction Dividends:
+            return (
+              <Card key={group.id} style={styles.groupCard}>
+                {/* Vacant Slot Gold Ribbon or Subscribed Green Ribbon */}
+                {isSubscribed ? (
+                  <View
+                    style={[
+                      styles.vacantHeader,
+                      {
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderColor: 'rgba(16, 185, 129, 0.45)',
+                      },
+                    ]}
+                  >
+                    <CheckCircle size={13} color="#10B981" />
+                    <Text style={[styles.vacantHeaderText, { color: '#10B981', fontWeight: '800' }]}>
+                      ALREADY ENROLLED · SUBSCRIBED
                     </Text>
                   </View>
-                  <View style={styles.dividendChipsRow}>
-                    {group.past_dividends.map((div, i) => (
+                ) : vacantSlots > 0 ? (
+                  <View
+                    style={[
+                      styles.vacantHeader,
+                      {
+                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                        borderColor: 'rgba(212, 175, 55, 0.45)',
+                      },
+                    ]}
+                  >
+                    <Coins size={12} color="#D4AF37" />
+                    <Text style={styles.vacantHeaderText}>
+                      {vacantSlots} VACANT SLOT{vacantSlots > 1 ? 'S' : ''} · IMMEDIATE BIDDING
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.vacantHeader,
+                      {
+                        backgroundColor: 'rgba(107, 114, 128, 0.12)',
+                        borderColor: 'rgba(107, 114, 128, 0.35)',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.vacantHeaderText, { color: '#6B7280', fontWeight: '800' }]}>
+                      GROUP FULL · ALL SLOTS FILLED
+                    </Text>
+                  </View>
+                )}
+
+                {/* Title & Valuation */}
+                <View style={styles.cardHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[typography.h3, { color: theme.text.primary, fontWeight: '700', fontSize: 17 }]}>
+                      {group.name}
+                    </Text>
+                    <Text style={[typography.displayLarge, { color: theme.maroon.primary, marginTop: 4, fontSize: 24 }]}>
+                      ₹{Number(group.chit_amount || 0).toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {isSubscribed && (
                       <View
-                        key={i}
                         style={[
-                          styles.divChip,
+                          styles.tenureBadge,
                           {
-                            backgroundColor: theme.surface.base,
-                            borderColor: theme.surface.border,
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            borderColor: 'rgba(16, 185, 129, 0.35)',
+                            marginRight: 6,
                           },
                         ]}
                       >
-                        <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '600', fontSize: 11 }]}>
-                          M{i + 1}: ₹{div.toLocaleString('en-IN')}
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#10B981' }}>
+                          ✓ JOINED
                         </Text>
                       </View>
-                    ))}
+                    )}
+                    <View
+                      style={[
+                        styles.tenureBadge,
+                        {
+                          backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                          borderColor: 'rgba(212, 175, 55, 0.35)',
+                        },
+                      ]}
+                    >
+                      <Calendar size={13} color="#D4AF37" />
+                      <Text style={styles.tenureBadgeText}>
+                        {group.duration_months} Months
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              )}
 
-              {/* Action Buttons */}
-              <View style={styles.cardActionsRow}>
-                <Button
-                  title="Details"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => onSelectGroup(group.id)}
-                  style={{ flex: 1, marginRight: 8 }}
+                {/* Stats Grid */}
+                <View style={[styles.statsGrid, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+                  <View style={styles.statCell}>
+                    <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Monthly Due</Text>
+                    <Text style={[typography.numericMedium, { color: theme.text.primary, fontWeight: '700', fontSize: 15, marginTop: 2 }]}>
+                      ₹{Number(group.installment_amount || (group.duration_months ? Math.round(group.chit_amount / group.duration_months) : 0)).toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                  <View style={styles.statCell}>
+                    <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Dividend Policy</Text>
+                    <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginTop: 2 }]}>
+                      {group.dividend_distribution_policy === 'NON_PRIZED_ONLY' ? 'Non-Prized' : 'All Members'}
+                    </Text>
+                  </View>
+                  <View style={styles.statCell}>
+                    <Text style={[typography.caption, { color: theme.text.secondary, fontSize: 10.5 }]}>Security</Text>
+                    <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '700', marginTop: 2 }]}>
+                      {group.security_instrument || 'PSO Reg FDR'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* State Transparency Badge */}
+                <TransparencyBadge
+                  registrarState={group.registrar_state_code}
+                  onPressDocs={() => onOpenDocs(group.name)}
+                  style={{ marginTop: 12 }}
                 />
-                <Button
-                  title="Subscribe"
-                  variant="primary"
-                  size="sm"
-                  onPress={() => setSelectedGroupToJoin(group)}
-                  style={{ flex: 1.2, marginLeft: 8 }}
-                />
-              </View>
-            </Card>
-          ))
+
+                {/* Past Dividends Chips */}
+                {group.past_dividends && group.past_dividends.length > 0 && (
+                  <View style={[styles.dividendBox, { borderColor: theme.surface.border }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TrendingUp size={12} color={theme.semantic.success} />
+                      <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 5, fontSize: 11 }]}>
+                        Past Auction Dividends:
+                      </Text>
+                    </View>
+                    <View style={styles.dividendChipsRow}>
+                      {group.past_dividends.map((div, i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.divChip,
+                            {
+                              backgroundColor: theme.surface.base,
+                              borderColor: theme.surface.border,
+                            },
+                          ]}
+                        >
+                          <Text style={[typography.caption, { color: theme.semantic.success, fontWeight: '600', fontSize: 11 }]}>
+                            M{i + 1}: ₹{div.toLocaleString('en-IN')}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={styles.cardActionsRow}>
+                  <Button
+                    title={isSubscribed ? "View Group Details" : "Details"}
+                    variant={isSubscribed ? "primary" : "outline"}
+                    size="sm"
+                    onPress={() => onSelectGroup(group.id)}
+                    style={{ flex: 1, marginRight: isSubscribed ? 0 : 8 }}
+                  />
+                  {!isSubscribed && (
+                    <Button
+                      title="Subscribe"
+                      variant="primary"
+                      size="sm"
+                      disabled={vacantSlots <= 0}
+                      onPress={() => setSelectedGroupToJoin(group)}
+                      style={{ flex: 1.2, marginLeft: 8 }}
+                    />
+                  )}
+                </View>
+              </Card>
+            );
+          })
         )}
       </View>
 

@@ -14,6 +14,7 @@ import { attachAuctionSocket } from './sockets/auctionSocket.js';
 import { query, pool } from './db.js';
 import { redis } from './redis.js';
 import { runMigrations } from './migrate.js';
+import { startAuctionTimerMonitor, stopAuctionTimerMonitor } from './services/auctionTimerService.js';
 
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -104,11 +105,13 @@ if (isDirectRun) {
     .finally(() => {
       server.listen(PORT, () => {
         console.log(`Naveen Chit Fund backend listening on port ${PORT}`);
+        startAuctionTimerMonitor(io);
       });
     });
 
   const gracefulShutdown = async (signal) => {
     console.log(`Received ${signal}. Starting zero-downtime graceful shutdown...`);
+    stopAuctionTimerMonitor();
     server.close(async () => {
       console.log('HTTP server closed. Draining active connections...');
       try {

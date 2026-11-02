@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import { Eye, AlertOctagon, Plus, Play, Gavel, Check, XCircle, UserCheck, Users } from 'lucide-react';
@@ -25,10 +25,14 @@ export const AuctionsPage = () => {
     const [newAuctionGroupId, setNewAuctionGroupId] = useState('');
     const [newAuctionMonth, setNewAuctionMonth] = useState(1);
     const [newAuctionStartNow, setNewAuctionStartNow] = useState(true);
+    const [newAuctionDurationMinutes, setNewAuctionDurationMinutes] = useState(5);
+    const [newAuctionScheduledAt, setNewAuctionScheduledAt] = useState('');
     const [newAuctionMaxParticipants, setNewAuctionMaxParticipants] = useState(20);
     const [createError, setCreateError] = useState('');
     // Live Socket bids stream state
     const [liveBids, setLiveBids] = useState([]);
+    const socketRef = useRef(null);
+    const selectedAuctionIdRef = useRef(selectedAuctionId);
     const { data, isLoading } = useQuery({
         queryKey: ['superadmin-auctions', page, pageSize, statusFilter],
         queryFn: async () => {
@@ -90,7 +94,7 @@ export const AuctionsPage = () => {
         },
     });
 
-    // Socket.IO connection for live auction room and real-time dashboard updates
+    // Socket.IO persistent connection for live auction room and real-time dashboard updates
     useEffect(() => {
         const socketUrl = import.meta.env.DEV
             ? (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('railway') ? import.meta.env.VITE_API_URL : window.location.origin)
@@ -98,56 +102,100 @@ export const AuctionsPage = () => {
         const socket = io(socketUrl, {
             transports: ['websocket', 'polling'],
         });
+        socketRef.current = socket;
 
-        if (selectedAuctionId) {
+        const handleBid = (bidData) => {
+            if (!bidData) return;
+            const currentSelected = selectedAuctionIdRef.current;
+            if (!currentSelected || bidData.auctionId === currentSelected) {
+                setLiveBids((prev) => {
+                    const exists = prev.some(
+                        (b) => b.ticketNumber === bidData.ticketNumber &&
+                               Number(b.bidPct) === Number(bidData.bidPct) &&
+                               (b.bidAt === bidData.bidAt || Math.abs(new Date(b.bidAt).getTime() - new Date(bidData.bidAt || Date.now()).getTime()) < 2000)
+                    );
+                    if (exists) return prev;
+                    return [
+                        {
+                            ticketNumber: bidData.ticketNumber,
+                            bidPct: bidData.bidPct,
+                            bidAt: bidData.bidAt || new Date().toISOString(),
+                        },
+                        ...prev,
+                    ];
+                });
+            }
+            // Real-time table and bids query refetch without page refresh
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+            queryClient.refetchQueries({ queryKey: ['superadmin-auctions'] });
+            if (currentSelected) {
+                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-bids', currentSelected] });
+                queryClient.refetchQueries({ queryKey: ['superadmin-auction-bids', currentSelected] });
+            }
+        };
+
+        const handleTicketUpdate = () => {
+            const currentSelected = selectedAuctionIdRef.current;
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+            queryClient.refetchQueries({ queryKey: ['superadmin-auctions'] });
+            if (currentSelected) {
+                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-tickets', currentSelected] });
+                queryClient.refetchQueries({ queryKey: ['superadmin-auction-tickets', currentSelected] });
+            }
+            refetchTickets();
+        };
+
+        const handleAuctionLifecycle = () => {
+            const currentSelected = selectedAuctionIdRef.current;
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
+            queryClient.refetchQueries({ queryKey: ['superadmin-auctions'] });
+            if (currentSelected) {
+                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-bids', currentSelected] });
+                queryClient.refetchQueries({ queryKey: ['superadmin-auction-bids', currentSelected] });
+                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-tickets', currentSelected] });
+                queryClient.refetchQueries({ queryKey: ['superadmin-auction-tickets', currentSelected] });
+            }
+        };
+
+        // Listen for live bids
+        socket.on('bid_placed', handleBid);
+        socket.on('auction:bid', handleBid);
+
+        // Listen for ticket applications and status updates
+        socket.on('auction:application_submitted', handleTicketUpdate);
+        socket.on('auction:token_applied', handleTicketUpdate);
+        socket.on('auction:ticket_approved', handleTicketUpdate);
+        socket.on('auction:ticket_rejected', handleTicketUpdate);
+        socket.on('auction:ticket_revoked', handleTicketUpdate);
+
+        // Listen for auction start & close
+        socket.on('auction_started', handleAuctionLifecycle);
+        socket.on('auction:started', handleAuctionLifecycle);
+        socket.on('auction_closed', handleAuctionLifecycle);
+        socket.on('auction:closed', handleAuctionLifecycle);
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, [queryClient, refetchTickets]);
+
+    // Handle joining / leaving auction room when selectedAuctionId changes
+    useEffect(() => {
+        selectedAuctionIdRef.current = selectedAuctionId;
+        const socket = socketRef.current;
+        if (socket && selectedAuctionId) {
             socket.emit('join_auction', {
                 auctionId: selectedAuctionId,
                 token: accessToken,
             });
         }
-
-        socket.on('bid_placed', (bidData) => {
-            if (bidData.auctionId === selectedAuctionId || !selectedAuctionId) {
-                setLiveBids((prev) => [
-                    {
-                        ticketNumber: bidData.ticketNumber,
-                        bidPct: bidData.bidPct,
-                        bidAt: bidData.bidAt || new Date().toISOString(),
-                    },
-                    ...prev,
-                ]);
-            }
-            // Auto-update auctions list & leading bids live without full page refresh
-            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
-            if (selectedAuctionId) {
-                queryClient.invalidateQueries({ queryKey: ['superadmin-auction-bids', selectedAuctionId] });
-            }
-        });
-
-        socket.on('auction:application_submitted', () => {
-            refetchTickets();
-            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
-        });
-
-        socket.on('auction_started', () => {
-            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
-        });
-
-        socket.on('auction:started', () => {
-            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
-        });
-
-        socket.on('auction_closed', () => {
-            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
-        });
-
         return () => {
-            if (selectedAuctionId) {
+            if (socket && selectedAuctionId) {
                 socket.emit('leave_auction', { auctionId: selectedAuctionId });
             }
-            socket.disconnect();
         };
-    }, [selectedAuctionId, accessToken, queryClient, refetchTickets]);
+    }, [selectedAuctionId, accessToken]);
     // Sync historical bids when detail loads
     useEffect(() => {
         if (bidsData?.bids) {
@@ -192,6 +240,8 @@ export const AuctionsPage = () => {
             setIsCreateModalOpen(false);
             setNewAuctionGroupId('');
             setNewAuctionMonth(1);
+            setNewAuctionDurationMinutes(5);
+            setNewAuctionScheduledAt('');
             setCreateError('');
         },
         onError: (err) => {
@@ -229,17 +279,60 @@ export const AuctionsPage = () => {
             cell: (item) => <StatusBadge status={item.status}/>,
         },
         {
+            header: 'Duration & Timing',
+            cell: (item) => (
+                <div className="text-xs">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                        ⏱ {item.duration_seconds ? `${Math.round(item.duration_seconds / 60)} min` : '5 min'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">
+                        {item.status === 'LIVE' && item.started_at
+                            ? `Started: ${new Date(item.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : item.scheduled_at
+                            ? `Sched: ${new Date(item.scheduled_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                            : 'On Demand'}
+                    </span>
+                </div>
+            ),
+        },
+        {
+            header: 'Tokens / Access',
+            cell: (item) => (
+                <div className="flex flex-col gap-1" onClick={(e) => { e.stopPropagation(); setSelectedAuctionId(item.id); setModalTab('tickets'); }}>
+                    {item.pending_tickets_count > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 cursor-pointer animate-pulse hover:bg-amber-200">
+                            <Users className="w-3 h-3" /> {item.pending_tickets_count} Pending Review
+                        </span>
+                    ) : (
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-500" /> {item.active_tickets_count || 0} Approved
+                        </span>
+                    )}
+                </div>
+            ),
+        },
+        {
             header: 'Winning / Leading Discount',
             accessorKey: 'winning_bid_pct',
-            cell: (item) => (<span className="font-bold text-gold-500">
-          {item.winning_bid_pct ? `${item.winning_bid_pct}%` : 'In Progress'}
-        </span>),
+            cell: (item) => (
+                <span className="font-bold text-gold-500">
+                    {item.winning_bid_pct
+                        ? `${item.winning_bid_pct}%`
+                        : item.status === 'LIVE'
+                        ? 'Waiting for bids'
+                        : item.status === 'SCHEDULED'
+                        ? 'Scheduled'
+                        : 'In Progress'}
+                </span>
+            ),
         },
         {
             header: 'Winner / Leading Ticket',
-            cell: (item) => (<span className="text-xs text-slate-700 dark:text-slate-300">
-          {item.winner_name ? `${item.winner_name} (#${item.winner_ticket_number})` : '-'}
-        </span>),
+            cell: (item) => (
+                <span className="text-xs text-slate-700 dark:text-slate-300">
+                    {item.winner_name ? `${item.winner_name} (#${item.winner_ticket_number})` : '-'}
+                </span>
+            ),
         },
         {
             header: 'Actions',
@@ -253,9 +346,23 @@ export const AuctionsPage = () => {
               <Play className="w-3 h-3 fill-current" /> Start Live
             </button>
           )}
-          {item.status !== 'COMPLETED' && (<button onClick={() => setForceCloseTarget(item)} className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded border border-rose-200 dark:border-rose-900">
-              Force Close
-            </button>)}
+          {item.status === 'LIVE' && (
+            <button
+              onClick={() => setForceCloseTarget(item)}
+              className="text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 px-2 py-1 rounded border border-rose-300 dark:border-rose-800 flex items-center gap-1 cursor-pointer transition shadow-xs"
+              title="Stop auction before duration expires and declare current leading bidder winner"
+            >
+              <AlertOctagon className="w-3 h-3 fill-current" /> Stop Auction
+            </button>
+          )}
+          {item.status !== 'COMPLETED' && item.status !== 'LIVE' && (
+            <button
+              onClick={() => setForceCloseTarget(item)}
+              className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline px-2 py-1 rounded border border-rose-200 dark:border-rose-900 cursor-pointer"
+            >
+              Close
+            </button>
+          )}
         </div>),
         },
     ];
@@ -544,9 +651,15 @@ export const AuctionsPage = () => {
               setCreateError('Please select a Chit Group');
               return;
             }
+            if (!newAuctionStartNow && !newAuctionScheduledAt) {
+              setCreateError('Please select a fixed starting time for scheduled auction');
+              return;
+            }
             createAuctionMutation.mutate({
               chitGroupId: newAuctionGroupId,
               monthNumber: Number(newAuctionMonth),
+              durationMinutes: Number(newAuctionDurationMinutes),
+              scheduledAt: !newAuctionStartNow && newAuctionScheduledAt ? new Date(newAuctionScheduledAt).toISOString() : undefined,
               startImmediately: newAuctionStartNow,
               maxParticipants: Number(newAuctionMaxParticipants),
             });
@@ -602,18 +715,35 @@ export const AuctionsPage = () => {
 
             <div>
               <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
-                Max Participant Limit *
+                Fixed Duration (Minutes) *
               </label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={newAuctionMaxParticipants}
-                onChange={(e) => setNewAuctionMaxParticipants(Number(e.target.value))}
-                required
+              <select
+                value={newAuctionDurationMinutes}
+                onChange={(e) => setNewAuctionDurationMinutes(Number(e.target.value))}
                 className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
-              />
+              >
+                <option value={2}>2 Minutes (Quick / Test)</option>
+                <option value={5}>5 Minutes (Standard)</option>
+                <option value={10}>10 Minutes</option>
+                <option value={15}>15 Minutes</option>
+                <option value={30}>30 Minutes</option>
+              </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+              Max Participant Limit *
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={newAuctionMaxParticipants}
+              onChange={(e) => setNewAuctionMaxParticipants(Number(e.target.value))}
+              required
+              className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+            />
           </div>
 
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
@@ -622,7 +752,7 @@ export const AuctionsPage = () => {
                 Start Live Immediately
               </span>
               <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                Moves status directly to LIVE and alerts connected subscribers
+                Moves status directly to LIVE and unfreezes countdown timer
               </span>
             </div>
             <input
@@ -632,6 +762,24 @@ export const AuctionsPage = () => {
               className="w-4 h-4 text-gold-500 rounded focus:ring-gold-500 cursor-pointer"
             />
           </div>
+
+          {!newAuctionStartNow && (
+            <div>
+              <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+                Fixed Starting Time *
+              </label>
+              <input
+                type="datetime-local"
+                value={newAuctionScheduledAt}
+                onChange={(e) => setNewAuctionScheduledAt(e.target.value)}
+                required={!newAuctionStartNow}
+                className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+              />
+              <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                Subscribers will receive an advance notification and can apply for tokens. Timer stays frozen until admin starts.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-maroon-900/50">
             <button
