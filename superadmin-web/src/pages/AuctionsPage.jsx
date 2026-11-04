@@ -24,7 +24,7 @@ export const AuctionsPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newAuctionGroupId, setNewAuctionGroupId] = useState('');
     const [newAuctionMonth, setNewAuctionMonth] = useState(1);
-    const [newAuctionStartNow, setNewAuctionStartNow] = useState(true);
+    const [newAuctionStartNow, setNewAuctionStartNow] = useState(false);
     const [newAuctionDurationMinutes, setNewAuctionDurationMinutes] = useState(5);
     const [newAuctionScheduledAt, setNewAuctionScheduledAt] = useState('');
     const [newAuctionMaxParticipants, setNewAuctionMaxParticipants] = useState(20);
@@ -168,7 +168,9 @@ export const AuctionsPage = () => {
         socket.on('auction:ticket_rejected', handleTicketUpdate);
         socket.on('auction:ticket_revoked', handleTicketUpdate);
 
-        // Listen for auction start & close
+        // Listen for auction lifecycle (create, start, close)
+        socket.on('auction_scheduled', handleAuctionLifecycle);
+        socket.on('auction:scheduled', handleAuctionLifecycle);
         socket.on('auction_started', handleAuctionLifecycle);
         socket.on('auction:started', handleAuctionLifecycle);
         socket.on('auction_closed', handleAuctionLifecycle);
@@ -242,6 +244,7 @@ export const AuctionsPage = () => {
             setNewAuctionMonth(1);
             setNewAuctionDurationMinutes(5);
             setNewAuctionScheduledAt('');
+            setNewAuctionStartNow(false);
             setCreateError('');
         },
         onError: (err) => {
@@ -746,23 +749,6 @@ export const AuctionsPage = () => {
             />
           </div>
 
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-            <div>
-              <span className="block text-xs font-bold text-stone-900 dark:text-stone-100">
-                Start Live Immediately
-              </span>
-              <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                Moves status directly to LIVE and unfreezes countdown timer
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={newAuctionStartNow}
-              onChange={(e) => setNewAuctionStartNow(e.target.checked)}
-              className="w-4 h-4 text-gold-500 rounded focus:ring-gold-500 cursor-pointer"
-            />
-          </div>
-
           {!newAuctionStartNow && (
             <div>
               <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
@@ -776,10 +762,27 @@ export const AuctionsPage = () => {
                 className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
               />
               <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-                Subscribers will receive an advance notification and can apply for tokens. Timer stays frozen until admin starts.
+                Subscribers receive an advance notification and can apply for tokens. The auction starts automatically at this scheduled time, or you can start it early anytime using the "Start Live" button.
               </p>
             </div>
           )}
+
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+            <div>
+              <span className="block text-xs font-bold text-stone-900 dark:text-stone-100">
+                Start Live Immediately (Bypass Scheduling)
+              </span>
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                Directly opens live bidding right now without waiting for a scheduled start time
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={newAuctionStartNow}
+              onChange={(e) => setNewAuctionStartNow(e.target.checked)}
+              className="w-4 h-4 text-gold-500 rounded focus:ring-gold-500 cursor-pointer"
+            />
+          </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-maroon-900/50">
             <button

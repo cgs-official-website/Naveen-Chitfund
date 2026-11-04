@@ -16,6 +16,7 @@ import {
 } from '../../services/ticketService.js';
 import { sendUserNotification, sendGroupNotification } from '../../services/notificationService.js';
 import { finalizeAuctionClose } from '../../services/auctionCloseService.js';
+import { startAuctionSession } from '../../services/auctionStartService.js';
 
 const router = express.Router();
 
@@ -321,70 +322,13 @@ router.post(
   requireSuperAdmin,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { rows } = await query(
-      `UPDATE chit_auctions
-       SET status = 'LIVE', started_at = now()
-       WHERE id = $1 AND status = 'SCHEDULED'
-       RETURNING *`,
-      [id]
-    );
-    if (!rows.length) throw new ApiError(400, 'Auction not found or not in SCHEDULED state');
-    const auction = rows[0];
-
-    const groupRes = await query(
-      'SELECT name, chit_amount, foreman_commission_pct FROM chit_groups WHERE id = $1',
-      [auction.chit_group_id]
-    );
-    const group = groupRes.rows[0] || {};
-    const minCommission = Number(group.foreman_commission_pct || 5);
-    const durationSeconds = Number(auction.duration_seconds || 300);
-    const startedAtMs = Date.now();
-
-    const initialLiveState = createLiveAuctionState({
-      minBidPct: minCommission,
-      durationSeconds,
-      startedAt: startedAtMs,
-    });
-    await redis.set(auctionKey(id), JSON.stringify(initialLiveState));
-    await redis.del(auctionBidsKey(id));
-
     const io = req.app.get('io');
-    if (io) {
-      broadcastStart(io, id, {
-        auction,
-        chitGroupId: auction.chit_group_id,
-        monthNumber: auction.month_number,
-        groupName: group.name,
-        chitAmount: group.chit_amount,
-        startedAt: new Date(startedAtMs).toISOString(),
-        durationSeconds,
-        remainingSeconds: durationSeconds,
-      });
-    }
-
-    try {
-      await sendGroupNotification({
-        io,
-        chitGroupId: auction.chit_group_id,
-        title: `Live Reverse Auction: ${group.name}`,
-        body: `Month #${auction.month_number} auction for ${group.name} is now LIVE! Bidding window is open for ${Math.round(durationSeconds / 60)} minutes. Place your bids!`,
-        category: 'AUCTION',
-        data: { auctionId: id, chitGroupId: auction.chit_group_id, monthNumber: auction.month_number, status: 'LIVE' },
-      });
-    } catch (notifErr) {
-      console.warn('[AuctionStart] Failed to dispatch group notification:', notifErr.message);
-    }
-
-    await logAuditEvent(null, {
-      eventType: 'AUCTION_STARTED',
+    const auction = await startAuctionSession({
+      auctionId: id,
       actorId: req.superAdmin?.id || null,
       actorType: 'SUPERADMIN',
-      entityType: 'chit_auctions',
-      entityId: id,
-      metadata: { monthNumber: auction.month_number, status: 'LIVE', durationSeconds },
-      ipAddress: req.ip,
+      io,
     });
-
     res.json({ success: true, message: 'Auction is now LIVE', data: auction });
   })
 );
@@ -489,7 +433,9 @@ router.post(
     }
 
     const initialStatus = startImmediately ? 'LIVE' : 'SCHEDULED';
-    const scheduledDate = scheduledAt || new Date().toISOString();
+    const scheduledDate = scheduledAt
+      ? new Date(scheduledAt).toISOString()
+      : new Date(Date.now() + 3600 * 1000).toISOString();
     const limitCount = maxParticipants || group.duration_months || 20;
     const durationSeconds = Number(durationMinutes || 5) * 60;
 
@@ -516,58 +462,47 @@ router.post(
     const io = req.app.get('io');
 
     if (startImmediately) {
-      const minCommission = Number(group.foreman_commission_pct || 5);
-      const initialLiveState = createLiveAuctionState({
-        minBidPct: minCommission,
-        durationSeconds,
-        startedAt: Date.now(),
+      await startAuctionSession({
+        auctionId: newAuction.id,
+        actorId: req.superAdmin?.id || null,
+        actorType: 'SUPERADMIN',
+        io,
       });
-      await redis.set(auctionKey(newAuction.id), JSON.stringify(initialLiveState));
-      await redis.del(auctionBidsKey(newAuction.id));
-      await query(`UPDATE chit_auctions SET started_at = now() WHERE id = $1`, [newAuction.id]);
-
-      if (io) {
-        broadcastStart(io, newAuction.id, {
-          auction: newAuction,
-          chitGroupId,
-          monthNumber,
-          groupName: group.name,
-          chitAmount: group.chit_amount,
-          maxParticipants: limitCount,
-          startedAt: new Date(initialLiveState.startedAt).toISOString(),
-          durationSeconds,
-          remainingSeconds: durationSeconds,
-        });
-      }
-
-      try {
-        await sendGroupNotification({
-          io,
-          chitGroupId,
-          title: `Live Reverse Auction: ${group.name}`,
-          body: `Month #${monthNumber} live auction for ${group.name} is now LIVE! Bidding window is open for ${durationMinutes || 5} minutes.`,
-          category: 'AUCTION',
-          data: { auctionId: newAuction.id, chitGroupId, monthNumber, status: 'LIVE' },
-        });
-      } catch (notifErr) {
-        console.warn('Live auction start notification error:', notifErr.message);
-      }
     } else {
       // Scheduled: notify subscribers so they can apply for tokens in advance
       try {
         const schedDateText = scheduledAt
           ? new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-          : 'soon';
+          : new Date(scheduledDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
         await sendGroupNotification({
           io,
           chitGroupId,
           title: `New Auction Scheduled: ${group.name}`,
           body: `Month #${monthNumber} auction for ${group.name} is scheduled for ${schedDateText}. Apply for your bidding token in advance.`,
           category: 'AUCTION',
-          data: { auctionId: newAuction.id, chitGroupId, monthNumber, status: 'SCHEDULED' },
+          data: { auctionId: newAuction.id, chitGroupId, monthNumber, status: 'SCHEDULED', scheduledAt: scheduledDate },
         });
       } catch (notifErr) {
         console.warn('Auction scheduled notification error:', notifErr.message);
+      }
+
+      if (io) {
+        io.emit('auction:scheduled', {
+          auctionId: newAuction.id,
+          chitGroupId,
+          monthNumber,
+          groupName: group.name,
+          scheduledAt: scheduledDate,
+          durationSeconds,
+        });
+        io.emit('auction_scheduled', {
+          auctionId: newAuction.id,
+          chitGroupId,
+          monthNumber,
+          groupName: group.name,
+          scheduledAt: scheduledDate,
+          durationSeconds,
+        });
       }
     }
 
@@ -578,7 +513,7 @@ router.post(
         actorType: 'SUPERADMIN',
         entityType: 'chit_auctions',
         entityId: newAuction.id,
-        metadata: { chitGroupId, monthNumber, status: initialStatus, maxParticipants: limitCount },
+        metadata: { chitGroupId, monthNumber, status: initialStatus, maxParticipants: limitCount, scheduledAt: scheduledDate, durationSeconds },
         ipAddress: req.ip,
       });
     } catch (auditErr) {
@@ -593,78 +528,6 @@ router.post(
         group_name: group.name,
         chit_amount: group.chit_amount,
       },
-    });
-  })
-);
-
-// POST /api/v1/superadmin/auctions/:id/start (Start a scheduled auction into LIVE)
-router.post(
-  '/:id/start',
-  requireSuperAdmin,
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    const auctionRes = await query(
-      `SELECT ca.*, cg.name AS group_name, cg.foreman_commission_pct, cg.chit_amount
-       FROM chit_auctions ca
-       JOIN chit_groups cg ON cg.id = ca.chit_group_id
-       WHERE ca.id = $1`,
-      [id]
-    );
-    if (!auctionRes.rows.length) throw new ApiError(404, 'Auction not found');
-    const auction = auctionRes.rows[0];
-
-    if (auction.status === 'LIVE') {
-      return res.json({ success: true, message: 'Auction is already live', data: auction });
-    }
-    if (auction.status === 'COMPLETED') {
-      throw new ApiError(400, 'Cannot restart a completed auction');
-    }
-
-    const { rows } = await query(
-      `UPDATE chit_auctions SET status = 'LIVE', started_at = COALESCE(started_at, now()) WHERE id = $1 RETURNING *`,
-      [id]
-    );
-    const updated = rows[0];
-
-    const minCommission = Number(auction.foreman_commission_pct || 5);
-    const durationSeconds = 300;
-    const initialLiveState = createLiveAuctionState({
-      minBidPct: minCommission,
-      durationSeconds,
-      startedAt: Date.now(),
-    });
-    await redis.set(auctionKey(id), JSON.stringify(initialLiveState));
-    await redis.del(auctionBidsKey(id));
-
-    const io = req.app.get('io');
-    if (io) {
-      broadcastStart(io, id, {
-        auction: updated,
-        chitGroupId: auction.chit_group_id,
-        monthNumber: auction.month_number,
-        groupName: auction.group_name,
-        chitAmount: auction.chit_amount,
-        startedAt: new Date(initialLiveState.startedAt).toISOString(),
-        durationSeconds,
-        remainingSeconds: durationSeconds,
-      });
-    }
-
-    await logAuditEvent(null, {
-      eventType: 'AUCTION_STARTED',
-      actorId: req.superAdmin.id,
-      actorType: 'SUPERADMIN',
-      entityType: 'chit_auctions',
-      entityId: id,
-      metadata: { monthNumber: auction.month_number },
-      ipAddress: req.ip,
-    });
-
-    res.json({
-      success: true,
-      message: 'Auction is now LIVE',
-      data: { ...updated, group_name: auction.group_name, chit_amount: auction.chit_amount },
     });
   })
 );

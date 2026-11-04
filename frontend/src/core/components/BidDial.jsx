@@ -243,7 +243,9 @@ export const BidDial = ({
             {isClosed
               ? `✓ Finalized ${closedAtText ? `· ${closedAtText}` : ''}`
               : isScheduled
-              ? `❄️ FROZEN · ${scheduledAtText ? `Starts ${scheduledAtText}` : 'Awaiting Foreman'}`
+              ? (remainingSeconds > 0
+                  ? `❄️ FROZEN · Starts in ${timerStr}`
+                  : `❄️ FROZEN · ${scheduledAtText ? `Scheduled for ${scheduledAtText}` : 'Awaiting Admin Start'}`)
               : remainingSeconds > 0
               ? `⏱ ${timerStr} left`
               : '⏱ Concluding session...'}

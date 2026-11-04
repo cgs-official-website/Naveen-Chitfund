@@ -1,16 +1,61 @@
 import { query } from '../db.js';
 import { finalizeAuctionClose } from './auctionCloseService.js';
+import { startAuctionSession } from './auctionStartService.js';
 
 let timerIntervalId = null;
-let isProcessing = false;
+let isClosingProcessing = false;
+let isStartingProcessing = false;
+
+/**
+ * Checks for scheduled auctions whose starting time has arrived (scheduled_at <= NOW())
+ * and automatically starts them into LIVE state.
+ */
+export async function checkAndStartScheduledAuctions(io = null) {
+  if (isStartingProcessing) return;
+  isStartingProcessing = true;
+
+  try {
+    const scheduledRes = await query(
+      `SELECT ca.id, ca.chit_group_id, ca.month_number, ca.scheduled_at, cg.name AS group_name
+       FROM chit_auctions ca
+       JOIN chit_groups cg ON cg.id = ca.chit_group_id
+       WHERE ca.status = 'SCHEDULED'
+         AND ca.scheduled_at IS NOT NULL
+         AND ca.scheduled_at <= NOW()`
+    );
+
+    for (const auction of scheduledRes.rows) {
+      try {
+        console.log(
+          `[AuctionTimerService] Auto-starting scheduled auction ${auction.id} for "${auction.group_name}" (month #${auction.month_number}) at scheduled time ${auction.scheduled_at}`
+        );
+        await startAuctionSession({
+          auctionId: auction.id,
+          actorId: null,
+          actorType: 'SYSTEM',
+          io,
+        });
+      } catch (startErr) {
+        console.error(
+          `[AuctionTimerService] Error auto-starting auction ${auction.id}:`,
+          startErr.message
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[AuctionTimerService] Error polling scheduled auctions:', err.message);
+  } finally {
+    isStartingProcessing = false;
+  }
+}
 
 /**
  * Checks for live auctions whose fixed duration has expired and automatically
  * finalizes and closes them.
  */
 export async function checkAndCloseExpiredAuctions(io = null) {
-  if (isProcessing) return;
-  isProcessing = true;
+  if (isClosingProcessing) return;
+  isClosingProcessing = true;
 
   try {
     const expiredRes = await query(
@@ -44,12 +89,12 @@ export async function checkAndCloseExpiredAuctions(io = null) {
   } catch (err) {
     console.error('[AuctionTimerService] Error polling expired auctions:', err.message);
   } finally {
-    isProcessing = false;
+    isClosingProcessing = false;
   }
 }
 
 /**
- * Starts the periodic background monitor for automatic auction closure.
+ * Starts the periodic background monitor for automatic auction start and closure.
  * Runs check every 5 seconds.
  */
 export function startAuctionTimerMonitor(io = null, intervalMs = 5000) {
@@ -57,12 +102,15 @@ export function startAuctionTimerMonitor(io = null, intervalMs = 5000) {
     clearInterval(timerIntervalId);
   }
 
-  // Initial check on startup
-  checkAndCloseExpiredAuctions(io);
-
-  timerIntervalId = setInterval(() => {
+  const runAllChecks = () => {
+    checkAndStartScheduledAuctions(io);
     checkAndCloseExpiredAuctions(io);
-  }, intervalMs);
+  };
+
+  // Initial check on startup
+  runAllChecks();
+
+  timerIntervalId = setInterval(runAllChecks, intervalMs);
 
   // Allow Node process to exit cleanly if this timer is active
   if (timerIntervalId.unref) {

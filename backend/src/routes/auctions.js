@@ -17,6 +17,7 @@ import {
 } from '../services/ticketService.js';
 import { sendGroupNotification } from '../services/notificationService.js';
 import { finalizeAuctionClose } from '../services/auctionCloseService.js';
+import { startAuctionSession } from '../services/auctionStartService.js';
 
 const router = express.Router();
 
@@ -286,64 +287,14 @@ router.post(
   requireAuth,
   requireRole('admin'),
   asyncHandler(async (req, res) => {
-    const { rows } = await query(
-      `UPDATE chit_auctions
-       SET status = 'LIVE', started_at = COALESCE(started_at, now())
-       WHERE id = $1 AND status = 'SCHEDULED'
-       RETURNING *`,
-      [req.params.id]
-    );
-    if (!rows.length) throw new ApiError(400, 'Auction not found or not in SCHEDULED state');
-
-    const groupRes = await query(
-      'SELECT foreman_commission_pct, name, chit_amount FROM chit_groups WHERE id = $1',
-      [rows[0].chit_group_id]
-    );
-    const minCommission = groupRes.rows.length ? Number(groupRes.rows[0].foreman_commission_pct) : 5;
-    const durationSeconds = rows[0].duration_seconds || 300;
-
-    const initialLiveState = createLiveAuctionState({
-      minBidPct: minCommission,
-      durationSeconds,
-      startedAt: Date.now(),
-    });
-
-    await redis.set(auctionKey(req.params.id), JSON.stringify(initialLiveState));
-    await redis.del(auctionBidsKey(req.params.id));
-
     const io = req.app.get('io');
-    if (io) {
-      broadcastStart(io, rows[0].id, {
-        auction: rows[0],
-        chitGroupId: rows[0].chit_group_id,
-        monthNumber: rows[0].month_number,
-        groupName: groupRes.rows[0]?.name || 'Chit Group',
-        chitAmount: groupRes.rows[0]?.chit_amount,
-        startedAt: new Date(initialLiveState.startedAt).toISOString(),
-        durationSeconds,
-        remainingSeconds: durationSeconds,
-      });
-    }
-
-    // Notify all active subscribers in this chit group
-    try {
-      const groupName = groupRes.rows[0]?.name || 'Chit Group';
-      await sendGroupNotification({
-        chitGroupId: rows[0].chit_group_id,
-        title: `Live Reverse Auction: ${groupName}`,
-        body: `Reverse auction for ${groupName} (Month #${rows[0].month_number}) is now live! Submit your bids before the window closes.`,
-        category: 'AUCTION',
-        data: {
-          auctionId: rows[0].id,
-          monthNumber: rows[0].month_number,
-          chitGroupId: rows[0].chit_group_id,
-        },
-      });
-    } catch (e) {
-      console.error('Failed to send auction start notifications:', e.message);
-    }
-
-    res.json({ success: true, data: rows[0] });
+    const auction = await startAuctionSession({
+      auctionId: req.params.id,
+      actorId: req.user.userId,
+      actorType: 'ADMIN',
+      io,
+    });
+    res.json({ success: true, data: auction });
   })
 );
 

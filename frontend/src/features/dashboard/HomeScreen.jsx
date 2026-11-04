@@ -372,23 +372,31 @@ export const HomeScreen = ({
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[typography.caption, { color: theme.text.secondary }]}>
-                {currentAuction.status === 'IN_PROGRESS' ? 'Subscribers in Room' : 'Total Subscribers'}
+                {currentAuction.status === 'IN_PROGRESS' ? 'Subscribers in Room' : 'Scheduled Start'}
               </Text>
               <Text style={[typography.numericMedium, { color: theme.text.primary, fontWeight: '700' }]}>
                 {currentAuction.status === 'IN_PROGRESS'
                   ? `${currentAuction.present_subscribers} of ${currentAuction.total_subscribers}`
-                  : `${currentAuction.total_subscribers} Members`}
+                  : currentAuction.scheduled_at
+                  ? new Date(currentAuction.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Awaiting Admin'}
               </Text>
             </View>
           </View>
 
           <Button
             title={
-              activeTicket?.status === 'ACTIVE'
-                ? 'Enter Live Auction Room'
-                : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
-                ? 'Check Ticket Status'
-                : 'Apply for Auction Token'
+              currentAuction.status === 'IN_PROGRESS'
+                ? (activeTicket?.status === 'ACTIVE'
+                    ? 'Enter Live Auction Room'
+                    : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                    ? 'Check Ticket Status'
+                    : 'Apply for Auction Token')
+                : (activeTicket?.status === 'ACTIVE'
+                    ? 'View Scheduled Auction (Token Approved)'
+                    : activeTicket?.status === 'APPLIED' || activeTicket?.status === 'PENDING'
+                    ? 'Check Token Status'
+                    : 'Apply for Bidding Token')
             }
             variant="gold"
             icon={<Gavel size={18} color={theme.maroon.deep} />}

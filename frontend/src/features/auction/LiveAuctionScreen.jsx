@@ -565,7 +565,9 @@ export const LiveAuctionScreen = () => {
               {isAuctionClosed
                 ? 'COMPLETED'
                 : isAuctionScheduled
-                ? 'FROZEN · WAITING TO START'
+                ? (remainingSeconds > 0
+                    ? `STARTS IN ${Math.floor(remainingSeconds / 60)}:${(remainingSeconds % 60).toString().padStart(2, '0')}`
+                    : 'FROZEN · AWAITING ADMIN START')
                 : remainingSeconds > 0
                 ? `${Math.floor(remainingSeconds / 60)}:${(remainingSeconds % 60).toString().padStart(2, '0')}`
                 : 'CONCLUDING'}

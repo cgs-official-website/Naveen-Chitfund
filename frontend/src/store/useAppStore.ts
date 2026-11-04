@@ -583,8 +583,13 @@ export const useAppStore = create<AppState>((set, get) => ({
                 if (remSeconds === 0 && !detail.closed_at) {
                   remSeconds = 300;
                 }
-              } else if (detail.status === 'SCHEDULED' && timing.startsInSeconds !== undefined) {
-                remSeconds = Number(timing.startsInSeconds);
+              } else if (detail.status === 'SCHEDULED') {
+                if (detail.scheduled_at) {
+                  const schedMs = new Date(detail.scheduled_at).getTime();
+                  remSeconds = Math.max(0, Math.floor((schedMs - Date.now()) / 1000));
+                } else if (timing.startsInSeconds !== undefined) {
+                  remSeconds = Number(timing.startsInSeconds);
+                }
               }
 
               set({
@@ -672,8 +677,13 @@ export const useAppStore = create<AppState>((set, get) => ({
                 if (remSeconds === 0 && !detail.closed_at) {
                   remSeconds = 300;
                 }
-              } else if (detail.status === 'SCHEDULED' && timing.startsInSeconds !== undefined) {
-                remSeconds = Number(timing.startsInSeconds);
+              } else if (detail.status === 'SCHEDULED') {
+                if (detail.scheduled_at) {
+                  const schedMs = new Date(detail.scheduled_at).getTime();
+                  remSeconds = Math.max(0, Math.floor((schedMs - Date.now()) / 1000));
+                } else if (timing.startsInSeconds !== undefined) {
+                  remSeconds = Number(timing.startsInSeconds);
+                }
               }
 
               set({
