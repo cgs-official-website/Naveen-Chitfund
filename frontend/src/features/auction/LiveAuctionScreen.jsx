@@ -183,18 +183,16 @@ export const LiveAuctionScreen = () => {
     };
 
     const handleTicketApproved = (data) => {
-      if (data && (data.auctionId === currentAuction?.id || !data.auctionId)) {
+      const currentUserId = useAppStore.getState().user?.id;
+      if (data && (!data.userId || data.userId === currentUserId) && (data.auctionId === currentAuction?.id || !data.auctionId)) {
         useAppStore.setState((state) => ({
           activeTicket: {
             ...(state.activeTicket || {}),
+            id: data.ticketId || state.activeTicket?.id,
             ticket_code: data.ticketCode || state.activeTicket?.ticket_code,
             status: 'ACTIVE',
           },
         }));
-        if (currentAuction?.id) {
-          fetchMyAuctionTicket(currentAuction.id);
-        }
-        fetchUserAuctionHistory();
         Alert.alert(
           'Auction Token Approved! 🎉',
           `Your bidding token ${data.ticketCode || ''} has been approved by the Superadmin. You can now participate in live reverse auction bidding!`
@@ -573,6 +571,29 @@ export const LiveAuctionScreen = () => {
                 : 'CONCLUDING'}
             </Text>
           </View>
+
+          <TouchableOpacity
+            onPress={async () => {
+              if (currentAuction?.id) {
+                await Promise.all([
+                  fetchAuctionState(currentAuction.id),
+                  fetchMyAuctionTicket(currentAuction.id),
+                  fetchCurrentAuction(),
+                ]);
+              }
+            }}
+            style={{
+              padding: 6,
+              borderRadius: 8,
+              backgroundColor: 'rgba(212, 175, 55, 0.12)',
+              borderWidth: 1,
+              borderColor: 'rgba(212, 175, 55, 0.3)',
+              marginLeft: 6,
+            }}
+            activeOpacity={0.7}
+          >
+            <RefreshCw size={13} color="#D4AF37" />
+          </TouchableOpacity>
         </View>
 
         {/* Active Ticket Status Badge / Application Banner */}

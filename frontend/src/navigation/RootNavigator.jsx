@@ -116,12 +116,49 @@ export const RootNavigator = () => {
       useAppStore.getState().fetchActiveChits();
     };
 
+    const handleTicketApprovedGlobal = (data) => {
+      const state = useAppStore.getState();
+      const currentUserId = state.user?.id;
+      if (!data?.userId || data.userId === currentUserId) {
+        useAppStore.setState((prev) => ({
+          activeTicket: {
+            ...(prev.activeTicket || {}),
+            id: data.ticketId || prev.activeTicket?.id,
+            ticket_code: data.ticketCode || prev.activeTicket?.ticket_code,
+            status: 'ACTIVE',
+          },
+        }));
+        if (state.currentAuction?.id) {
+          state.fetchMyAuctionTicket(state.currentAuction.id);
+        }
+        state.fetchActiveChits();
+      }
+    };
+
+    const handleTicketRejectedGlobal = (data) => {
+      const state = useAppStore.getState();
+      const currentUserId = state.user?.id;
+      if (!data?.userId || data.userId === currentUserId) {
+        useAppStore.setState((prev) => ({
+          activeTicket: {
+            ...(prev.activeTicket || {}),
+            status: 'REJECTED',
+          },
+        }));
+        if (state.currentAuction?.id) {
+          state.fetchMyAuctionTicket(state.currentAuction.id);
+        }
+      }
+    };
+
     socket.on('chit_group:created', handleGroupCreated);
     socket.on('notification:new', handleNotificationNew);
     socket.on('auction:started', handleAuctionRefresh);
     socket.on('auction_started', handleAuctionRefresh);
     socket.on('auction:closed', handleAuctionRefresh);
     socket.on('auction_closed', handleAuctionRefresh);
+    socket.on('auction:ticket_approved', handleTicketApprovedGlobal);
+    socket.on('auction:ticket_rejected', handleTicketRejectedGlobal);
 
     return () => {
       socket.off('chit_group:created', handleGroupCreated);
@@ -130,6 +167,8 @@ export const RootNavigator = () => {
       socket.off('auction_started', handleAuctionRefresh);
       socket.off('auction:closed', handleAuctionRefresh);
       socket.off('auction_closed', handleAuctionRefresh);
+      socket.off('auction:ticket_approved', handleTicketApprovedGlobal);
+      socket.off('auction:ticket_rejected', handleTicketRejectedGlobal);
     };
   }, []);
 

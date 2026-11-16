@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
-import { Eye, AlertOctagon, Plus, Play, Gavel, Check, XCircle, UserCheck, Users } from 'lucide-react';
+import { Eye, AlertOctagon, Plus, Play, Gavel, Check, XCircle, UserCheck, Users, RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
 import { DataTable } from '../components/common/DataTable';
 import { FilterBar } from '../components/common/FilterBar';
@@ -31,6 +31,7 @@ export const AuctionsPage = () => {
     const [createError, setCreateError] = useState('');
     // Live Socket bids stream state
     const [liveBids, setLiveBids] = useState([]);
+    const [isManualRefreshing, setIsManualRefreshing] = useState(false);
     const socketRef = useRef(null);
     const selectedAuctionIdRef = useRef(selectedAuctionId);
     const { data, isLoading } = useQuery({
@@ -43,7 +44,7 @@ export const AuctionsPage = () => {
         },
         refetchInterval: 15000,
     });
-    const { data: bidsData } = useQuery({
+    const { data: bidsData, refetch: refetchBids, isFetching: isFetchingBids } = useQuery({
         queryKey: ['superadmin-auction-bids', selectedAuctionId],
         queryFn: async () => {
             if (!selectedAuctionId)
@@ -52,8 +53,9 @@ export const AuctionsPage = () => {
             return res.data.data;
         },
         enabled: Boolean(selectedAuctionId),
+        refetchInterval: 3000,
     });
-    const { data: ticketsData, refetch: refetchTickets } = useQuery({
+    const { data: ticketsData, refetch: refetchTickets, isFetching: isFetchingTickets } = useQuery({
         queryKey: ['superadmin-auction-tickets', selectedAuctionId],
         queryFn: async () => {
             if (!selectedAuctionId)
@@ -62,7 +64,18 @@ export const AuctionsPage = () => {
             return res.data;
         },
         enabled: Boolean(selectedAuctionId),
+        refetchInterval: 4000,
     });
+
+    const handleManualRefresh = async () => {
+        setIsManualRefreshing(true);
+        await Promise.all([
+            refetchBids(),
+            refetchTickets(),
+            queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] }),
+        ]);
+        setTimeout(() => setIsManualRefreshing(false), 400);
+    };
     const revokeMutation = useMutation({
         mutationFn: async ({ ticketId, reason }) => {
             const res = await api.post(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets/${ticketId}/revoke`, { reason });
@@ -78,7 +91,28 @@ export const AuctionsPage = () => {
             const res = await api.post(`/api/v1/superadmin/auctions/${selectedAuctionId}/tickets/${ticketId}/approve`);
             return res.data;
         },
-        onSuccess: () => {
+        onMutate: async (ticketId) => {
+            // Cancel outgoing queries to prevent overwriting optimistic state
+            await queryClient.cancelQueries({ queryKey: ['superadmin-auction-tickets', selectedAuctionId] });
+            const previousTickets = queryClient.getQueryData(['superadmin-auction-tickets', selectedAuctionId]);
+
+            // Optimistically update ticket to ACTIVE immediately (0ms visual latency)
+            queryClient.setQueryData(['superadmin-auction-tickets', selectedAuctionId], (old) => {
+                if (!old?.data) return old;
+                return {
+                    ...old,
+                    data: old.data.map((t) => (t.id === ticketId ? { ...t, status: 'ACTIVE' } : t)),
+                };
+            });
+
+            return { previousTickets };
+        },
+        onError: (err, ticketId, context) => {
+            if (context?.previousTickets) {
+                queryClient.setQueryData(['superadmin-auction-tickets', selectedAuctionId], context.previousTickets);
+            }
+        },
+        onSettled: () => {
             refetchTickets();
             queryClient.invalidateQueries({ queryKey: ['superadmin-auctions'] });
         },
@@ -200,11 +234,13 @@ export const AuctionsPage = () => {
     }, [selectedAuctionId, accessToken]);
     // Sync historical bids when detail loads
     useEffect(() => {
-        if (bidsData?.bids) {
-            setLiveBids(bidsData.bids.map((b) => ({
+        const rawBids = bidsData?.bids || bidsData?.data?.bids;
+        if (Array.isArray(rawBids)) {
+            setLiveBids(rawBids.map((b) => ({
                 ticketNumber: b.ticket_number,
                 bidPct: Number(b.bid_pct),
-                bidAt: b.created_at,
+                bidAt: b.bid_at || b.created_at || new Date().toISOString(),
+                bidderName: b.bidder_name || null,
             })));
         }
     }, [bidsData]);
@@ -441,27 +477,41 @@ export const AuctionsPage = () => {
             </div>
           </div>
 
-          {/* Modal Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-stone-200 dark:border-maroon-900/50 pb-2">
+          {/* Modal Navigation Tabs & Instant Refresh */}
+          <div className="flex items-center justify-between border-b border-stone-200 dark:border-maroon-900/50 pb-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setModalTab('bids')}
+                className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                  modalTab === 'bids'
+                    ? 'bg-gold-500 text-stone-950 shadow-xs'
+                    : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
+                }`}
+              >
+                Live Bids ({liveBids.length})
+              </button>
+              <button
+                onClick={() => setModalTab('tickets')}
+                className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+                  modalTab === 'tickets'
+                    ? 'bg-gold-500 text-stone-950 shadow-xs'
+                    : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
+                }`}
+              >
+                Participation Tickets ({ticketsData?.data?.length || 0})
+              </button>
+            </div>
+
+            {/* Instant Manual Refresh Action */}
             <button
-              onClick={() => setModalTab('bids')}
-              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                modalTab === 'bids'
-                  ? 'bg-gold-500 text-stone-950 shadow-xs'
-                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
-              }`}
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isManualRefreshing || isFetchingBids}
+              title="Refresh live bids and participation tickets immediately"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-stone-100 hover:bg-stone-200 dark:bg-maroon-900/40 dark:hover:bg-maroon-900/70 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-maroon-800/60 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
             >
-              Live Bids ({liveBids.length})
-            </button>
-            <button
-              onClick={() => setModalTab('tickets')}
-              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                modalTab === 'tickets'
-                  ? 'bg-gold-500 text-stone-950 shadow-xs'
-                  : 'text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-maroon-900/40'
-              }`}
-            >
-              Participation Tickets ({ticketsData?.data?.length || 0})
+              <RefreshCw className={`w-3.5 h-3.5 text-gold-500 ${isManualRefreshing || isFetchingBids ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
             </button>
           </div>
 

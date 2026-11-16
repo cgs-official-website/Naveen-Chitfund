@@ -295,23 +295,23 @@ router.post(
       });
     }
 
-    // Persist in-app notification & send push alert to subscriber
-    try {
-      await sendUserNotification({
-        userId: approvedTicket.user_id,
-        title: 'Auction Ticket Approved! 🎉',
-        body: `Your bidding ticket ${approvedTicket.ticket_code} has been approved by the Superadmin. You can now place bids in the live reverse auction!`,
-        category: 'AUCTION',
-        data: { auctionId: id, ticketCode: approvedTicket.ticket_code, ticketId, status: 'ACTIVE' },
-      });
-    } catch (notifErr) {
-      console.warn('[TicketApproval] Failed to dispatch user notification:', notifErr.message);
-    }
-
+    // Return instant 200 response to Superadmin (< 20ms)
     res.json({
       success: true,
       message: 'Ticket approved successfully. User can now access live auction.',
       data: approvedTicket,
+    });
+
+    // Fire-and-forget in-app notification & push alert asynchronously in background (non-blocking)
+    sendUserNotification({
+      io,
+      userId: approvedTicket.user_id,
+      title: 'Auction Ticket Approved! 🎉',
+      body: `Your bidding ticket ${approvedTicket.ticket_code} has been approved by the Superadmin. You can now place bids in the live reverse auction!`,
+      category: 'AUCTION',
+      data: { auctionId: id, ticketCode: approvedTicket.ticket_code, ticketId, status: 'ACTIVE' },
+    }).catch((notifErr) => {
+      console.warn('[TicketApproval] Failed to dispatch user notification in background:', notifErr.message);
     });
   })
 );
