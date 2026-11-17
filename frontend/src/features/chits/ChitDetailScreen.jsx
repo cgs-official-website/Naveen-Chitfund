@@ -68,6 +68,7 @@ export const ChitDetailScreen = ({
   }
 
   const mySub = (activeChits || []).find((c) => c.chit_group_id === group.id);
+  const isForeman = Boolean(group.foreman_id && user?.id && group.foreman_id === user.id);
 
   const handleJoin = async () => {
     setJoining(true);
@@ -199,7 +200,19 @@ export const ChitDetailScreen = ({
           </View>
         </View>
 
-        {mySub ? (
+        {isForeman ? (
+          <View style={[styles.enrolledBox, { backgroundColor: 'rgba(212, 175, 55, 0.1)', borderColor: 'rgba(212, 175, 55, 0.4)' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ShieldCheck size={16} color="#D4AF37" />
+              <Text style={{ color: '#D4AF37', fontWeight: '700', marginLeft: 6, fontSize: 13 }}>
+                You are the Foreman of this group
+              </Text>
+            </View>
+            <Text style={{ color: theme.text.secondary, fontSize: 11, marginTop: 4 }}>
+              Foremen manage the group and cannot subscribe to it.
+            </Text>
+          </View>
+        ) : mySub ? (
           <View style={[styles.enrolledBox, { backgroundColor: 'rgba(74, 222, 128, 0.1)', borderColor: 'rgba(74, 222, 128, 0.4)' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>

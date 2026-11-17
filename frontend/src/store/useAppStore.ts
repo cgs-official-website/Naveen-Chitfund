@@ -50,6 +50,8 @@ export interface ChitGroup {
   fdr_number: string;
   pso_order_number: string;
   past_dividends: number[];
+  foreman_id?: string;
+  foreman_name?: string;
 }
 
 export interface Subscription {
@@ -753,7 +755,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await Promise.all([get().fetchActiveChits(), get().fetchAvailableGroups()]);
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Failed to join chit group' };
+        return { success: false, error: err.response?.data?.error || err.message || 'Failed to join chit group' };
     }
   },
 

@@ -32,7 +32,8 @@ router.get(
       `SELECT cg.id, cg.name, cg.chit_amount::float AS chit_amount, cg.chit_amount_paise,
               cg.duration_months, cg.foreman_commission_pct::float AS foreman_commission_pct,
               cg.status, cg.registrar_state_code, cg.dividend_distribution_policy,
-              cg.created_at,
+              cg.created_at, cg.foreman_id,
+              (SELECT u.full_name FROM users u WHERE u.id = cg.foreman_id) AS foreman_name,
               COUNT(s.id)::int AS subscriber_count,
               GREATEST(cg.duration_months - COUNT(s.id)::int, 0) AS vacant_slots,
               ROUND(cg.chit_amount / cg.duration_months, 2)::float AS installment_amount
@@ -60,7 +61,8 @@ router.get(
       `SELECT cg.id, cg.name, cg.chit_amount::float AS chit_amount, cg.chit_amount_paise,
               cg.duration_months, cg.foreman_commission_pct::float AS foreman_commission_pct,
               cg.status, cg.registrar_state_code, cg.dividend_distribution_policy,
-              cg.created_at,
+              cg.created_at, cg.foreman_id,
+              (SELECT u.full_name FROM users u WHERE u.id = cg.foreman_id) AS foreman_name,
               COUNT(s.id)::int AS subscriber_count,
               GREATEST(cg.duration_months - COUNT(s.id)::int, 0) AS vacant_slots,
               ROUND(cg.chit_amount / cg.duration_months, 2)::float AS installment_amount

@@ -48,6 +48,7 @@ export const ChitDiscoveryScreen = ({
     joinChitGroup,
     activeChits,
     fetchActiveChits,
+    user,
   } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -374,6 +375,7 @@ export const ChitDiscoveryScreen = ({
         ) : (
           filteredGroups.map((group) => {
             const isSubscribed = (activeChits || []).some((c) => c.chit_group_id === group.id);
+            const isForeman = Boolean(group.foreman_id && user?.id && group.foreman_id === user.id);
             const vacantSlots =
               group.vacant_slots !== undefined
                 ? group.vacant_slots
@@ -382,7 +384,22 @@ export const ChitDiscoveryScreen = ({
             return (
               <Card key={group.id} style={styles.groupCard}>
                 {/* Vacant Slot Gold Ribbon or Subscribed Green Ribbon */}
-                {isSubscribed ? (
+                {isForeman ? (
+                  <View
+                    style={[
+                      styles.vacantHeader,
+                      {
+                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                        borderColor: 'rgba(212, 175, 55, 0.45)',
+                      },
+                    ]}
+                  >
+                    <CheckCircle size={13} color="#D4AF37" />
+                    <Text style={[styles.vacantHeaderText, { fontWeight: '800' }]}>
+                      YOU ARE THE FOREMAN OF THIS GROUP
+                    </Text>
+                  </View>
+                ) : isSubscribed ? (
                   <View
                     style={[
                       styles.vacantHeader,
@@ -534,13 +551,13 @@ export const ChitDiscoveryScreen = ({
                 {/* Action Buttons */}
                 <View style={styles.cardActionsRow}>
                   <Button
-                    title={isSubscribed ? "View Group Details" : "Details"}
-                    variant={isSubscribed ? "primary" : "outline"}
+                    title={isSubscribed || isForeman ? "View Group Details" : "Details"}
+                    variant={isSubscribed || isForeman ? "primary" : "outline"}
                     size="sm"
                     onPress={() => onSelectGroup(group.id)}
-                    style={{ flex: 1, marginRight: isSubscribed ? 0 : 8 }}
+                    style={{ flex: 1, marginRight: isSubscribed || isForeman ? 0 : 8 }}
                   />
-                  {!isSubscribed && (
+                  {!isSubscribed && !isForeman && (
                     <Button
                       title="Subscribe"
                       variant="primary"

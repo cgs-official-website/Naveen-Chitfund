@@ -25,6 +25,7 @@ export const ChitGroupsPage = () => {
         foremanCommissionPct: 5,
         psoNumber: '',
         fdrNumber: '',
+        foremanId: '',
         dividendDistributionPolicy: 'NON_PRIZED_ONLY',
     });
     const { data, isLoading } = useQuery({
@@ -36,6 +37,16 @@ export const ChitGroupsPage = () => {
             return res.data;
         },
     });
+
+    const { data: foremenData, isLoading: isForemenLoading } = useQuery({
+        queryKey: ['superadmin-foremen-options'],
+        queryFn: async () => {
+            const res = await api.get('/api/v1/superadmin/foremen', { params: { page: 1, limit: 100 } });
+            return res.data.data || [];
+        },
+        enabled: isCreateModalOpen,
+    });
+    const activeForemen = (foremenData || []).filter((f) => f.kyc_status === 'APPROVED');
     const { data: detailData, isLoading: isDetailLoading } = useQuery({
         queryKey: ['superadmin-group-detail', selectedGroupId],
         queryFn: async () => {
@@ -63,6 +74,7 @@ export const ChitGroupsPage = () => {
                 foremanCommissionPct: 5,
                 psoNumber: '',
                 fdrNumber: '',
+                foremanId: '',
                 dividendDistributionPolicy: 'NON_PRIZED_ONLY',
             });
         },
@@ -80,7 +92,12 @@ export const ChitGroupsPage = () => {
         </div>),
         },
         {
-            header: 'Chit Value',
+            header: 'Foreman',
+            accessorKey: 'foreman_name',
+            cell: (item) => <span className="text-xs">{item.foreman_name || '—'}</span>,
+        },
+        {
+            header: 'Chit Value',   
             accessorKey: 'chit_amount',
             cell: (item) => <CurrencyText amount={item.chit_amount} className="font-bold text-gold-600 dark:text-gold-400"/>,
         },
@@ -229,6 +246,9 @@ export const ChitGroupsPage = () => {
                     Statutory Certifications & Guarantees
                   </span>
                   <p className="text-slate-500">
+                    Foreman: <code className="text-slate-700 dark:text-slate-300 font-bold">{group?.foreman_name || 'Not assigned'}</code>
+                  </p>
+                  <p className="text-slate-500">
                     Prior Sanction Order (PSO): <code className="text-gold-500">{group?.pso_number || 'Pending PSO Filing'}</code>
                   </p>
                   <p className="text-slate-500">
@@ -315,6 +335,7 @@ export const ChitGroupsPage = () => {
               foremanCommissionPct: Number(newGroupForm.foremanCommissionPct),
               psoNumber: newGroupForm.psoNumber || undefined,
               fdrNumber: newGroupForm.fdrNumber || undefined,
+              foremanId: newGroupForm.foremanId,
               dividendDistributionPolicy: newGroupForm.dividendDistributionPolicy,
             });
           }}
@@ -338,6 +359,33 @@ export const ChitGroupsPage = () => {
               onChange={(e) => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
               className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5">
+              Assign Foreman *
+            </label>
+            <select
+              required
+              value={newGroupForm.foremanId}
+              onChange={(e) => setNewGroupForm({ ...newGroupForm, foremanId: e.target.value })}
+              disabled={isForemenLoading}
+              className="w-full text-xs py-2.5 px-3 bg-stone-50 dark:bg-[#1C0D18] border border-stone-200 dark:border-maroon-800/60 rounded-xl text-stone-800 dark:text-stone-200 focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500"
+            >
+              <option value="">
+                {isForemenLoading ? 'Loading foremen...' : 'Select a foreman'}
+              </option>
+              {activeForemen.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.full_name} ({f.phone})
+                </option>
+              ))}
+            </select>
+            {!isForemenLoading && activeForemen.length === 0 && (
+              <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                No active foremen found. Add one from the Foremen page first.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

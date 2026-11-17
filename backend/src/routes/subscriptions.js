@@ -26,6 +26,10 @@ joinRouter.post(
         throw new ApiError(400, 'Chit group is not open for new subscribers');
       }
 
+      if (group.foreman_id && group.foreman_id === req.user.userId) {
+        throw new ApiError(403, 'You are the foreman of this chit group and cannot subscribe to it');
+      }
+
       // Check current subscriber count against group duration capacity
       const countRes = await client.query(
         'SELECT COUNT(*)::int AS count FROM subscriptions WHERE chit_group_id = $1',

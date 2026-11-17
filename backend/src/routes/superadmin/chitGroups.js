@@ -17,6 +17,7 @@ const createChitGroupSchema = z.object({
   dividendDistributionPolicy: z.enum(['ALL_SUBSCRIBERS', 'NON_PRIZED_ONLY']).default('NON_PRIZED_ONLY'),
   psoNumber: z.string().optional(),
   fdrNumber: z.string().optional(),
+  foremanId: z.string().uuid('Please select a valid foreman'),
 });
 
 // POST /api/v1/superadmin/chit-groups
@@ -28,12 +29,23 @@ router.post(
     const b = req.body;
     const chitAmountPaise = toPaise(b.chitAmount);
 
+    const foremanRes = await query(
+      `SELECT id, full_name, kyc_status FROM users WHERE id = $1 AND role = 'admin'`,
+      [b.foremanId]
+    );
+    if (!foremanRes.rows.length) {
+      throw new ApiError(400, 'Selected foreman does not exist');
+    }
+    if (foremanRes.rows[0].kyc_status !== 'APPROVED') {
+      throw new ApiError(400, 'Selected foreman is suspended or not approved');
+    }
+
     let newGroup;
     try {
       const { rows } = await query(
         `INSERT INTO chit_groups
-           (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status, pso_number, fdr_number)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9)
+            (name, chit_amount, chit_amount_paise, duration_months, foreman_commission_pct, registrar_state_code, dividend_distribution_policy, status, pso_number, fdr_number, foreman_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9, $10)
          RETURNING *`,
         [
           b.name,
@@ -45,6 +57,7 @@ router.post(
           b.dividendDistributionPolicy,
           b.psoNumber || null,
           b.fdrNumber || null,
+          b.foremanId,
         ]
       );
       newGroup = rows[0];
@@ -75,7 +88,7 @@ router.post(
         actorType: 'SUPERADMIN',
         entityType: 'chit_groups',
         entityId: newGroup.id,
-        metadata: { name: b.name, chitAmount: b.chitAmount, durationMonths: b.durationMonths },
+        metadata: { name: b.name, chitAmount: b.chitAmount, durationMonths: b.durationMonths, foremanId: b.foremanId },
         ipAddress: req.ip,
       });
     } catch (auditErr) {
@@ -136,11 +149,13 @@ router.get(
     const dataParams = [...params, limit, offset];
     const { rows } = await query(
       `SELECT cg.*,
+              f.full_name AS foreman_name,
               COUNT(s.id)::int AS filled_subscribers
        FROM chit_groups cg
+       LEFT JOIN users f ON f.id = cg.foreman_id
        LEFT JOIN subscriptions s ON s.chit_group_id = cg.id
        ${whereClause}
-       GROUP BY cg.id
+       GROUP BY cg.id, f.full_name
        ORDER BY cg.created_at DESC
        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
       dataParams
@@ -166,7 +181,14 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const groupRes = await query(`SELECT * FROM chit_groups WHERE id = $1`, [id]);
+    const groupRes = await query(
+      `SELECT cg.*, f.full_name AS foreman_name, f.phone AS foreman_phone
+       FROM chit_groups cg
+       LEFT JOIN users f ON f.id = cg.foreman_id
+       WHERE cg.id = $1`,
+      [id]
+    );
+
     if (!groupRes.rows.length) {
       throw new ApiError(404, 'Chit group not found');
     }
