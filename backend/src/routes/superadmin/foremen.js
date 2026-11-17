@@ -119,9 +119,9 @@ router.get(
       throw new ApiError(404, 'Foreman not found');
     }
 
-    // Associated groups
     const groupsRes = await query(
-      `SELECT * FROM chit_groups ORDER BY created_at DESC`
+      `SELECT * FROM chit_groups WHERE foreman_id = $1 ORDER BY created_at DESC`,
+      [id]
     );
 
     res.json({

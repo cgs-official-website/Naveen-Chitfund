@@ -252,7 +252,7 @@ export const ChitGroupsPage = () => {
                     Prior Sanction Order (PSO): <code className="text-gold-500">{group?.pso_number || 'Pending PSO Filing'}</code>
                   </p>
                   <p className="text-slate-500">
-                    Bank FDR 100% Escrow Pledge: <code className="text-gold-500">{group?.fdr_bank_guarantee_ref || 'Pending Escrow Deposit'}</code>
+                    Bank FDR 100% Escrow Pledge: <code className="text-gold-500">{group?.fdr_number || 'Pending Escrow Deposit'}</code>
                   </p>
                   <p className="text-slate-500">
                     Dividend Distribution Policy: <code className="text-slate-700 dark:text-slate-300 font-bold">{group?.dividend_distribution_policy || 'NON_PRIZED_ONLY'}</code>

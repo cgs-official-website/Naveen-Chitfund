@@ -227,6 +227,11 @@ export const ForemenPage = () => {
             Managed Chit Groups & Bank FDR Guarantees
           </h4>
           <div className="space-y-2">
+            {(detailData?.groups || []).length === 0 && (
+              <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-navy-900 border border-dashed border-slate-200 dark:border-navy-800 rounded-card">
+                This foreman is not assigned to any chit groups yet.
+              </div>
+            )}
             {(detailData?.groups || []).map((grp) => (<div key={grp.id} className="p-3 bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 rounded-card flex items-center justify-between text-xs">
               <div>
                 <span className="font-bold text-slate-900 dark:text-slate-100 block">{grp.name}</span>
@@ -235,7 +240,7 @@ export const ForemenPage = () => {
                 </span>
               </div>
               <span className="font-mono text-[10px] px-2 py-1 rounded bg-slate-100 dark:bg-navy-800 text-gold-600 dark:text-gold-400">
-                FDR: {grp.fdr_bank_guarantee_ref || 'PLEDGED-100%'}
+                FDR: {grp.fdr_number || 'Not provided'}
               </span>
             </div>))}
           </div>
