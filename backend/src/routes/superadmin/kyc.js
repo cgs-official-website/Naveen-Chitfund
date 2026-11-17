@@ -23,9 +23,16 @@ router.get(
     const { page, limit, offset } = getPagination(req);
     const status = req.query.status || 'PENDING';
     const q = req.query.q ? `%${req.query.q.trim()}%` : null;
+    // Optional role filter: 'admin' = foremen, 'user' = subscribers
+    const role = ['admin', 'user'].includes(req.query.role) ? req.query.role : null;
 
     let whereConditions = [];
     const params = [];
+
+    if (role) {
+      params.push(role);
+      whereConditions.push(`u.role = $${params.length}`);
+    }
 
     if (status !== 'ALL') {
       params.push(status);
