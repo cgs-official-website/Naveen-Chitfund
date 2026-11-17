@@ -21,7 +21,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { ShieldCheck, Clock, LogOut, AlertTriangle, RefreshCw } from 'lucide-react-native';
 
 /**
- * Shown INSTEAD of the normal app tabs while a foreman's KYC is not approved.
+ * Shown INSTEAD of the normal app tabs while a user's (foreman OR subscriber) KYC is not approved.
  *
  *  - NOT_STARTED / REJECTED  -> KYC form (name, email, PAN)
  *  - PENDING                 -> "waiting for Super Admin approval" (auto-checks every 8 s)
@@ -32,6 +32,7 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
     const { theme, typography } = useTheme();
     const { user, fetchUserProfile, updateUserProfile } = useAppStore();
 
+    const isForeman = user?.role === 'admin';
     const status = user?.kyc_status || 'NOT_STARTED';
     const isPending = status === 'PENDING';
     const isRejected = status === 'REJECTED';
@@ -41,12 +42,14 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
     const [pan, setPan] = useState(user?.pan_number || '');
     const [submitting, setSubmitting] = useState(false);
     const [checking, setChecking] = useState(false);
+    const [lastChecked, setLastChecked] = useState(null);
 
     // While waiting, quietly re-check the approval status every 8 seconds.
     useEffect(() => {
         if (!isPending) return undefined;
-        const timer = setInterval(() => {
-            fetchUserProfile();
+        const timer = setInterval(async () => {
+            await fetchUserProfile();
+            setLastChecked(new Date());
         }, 8000);
         return () => clearInterval(timer);
     }, [isPending]);
@@ -91,7 +94,22 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
     const handleCheckStatus = async () => {
         setChecking(true);
         try {
-            await fetchUserProfile();
+            const res = await fetchUserProfile();
+            setLastChecked(new Date());
+            if (!res.success) {
+                Alert.alert(
+                    'Could not check status',
+                    res.error || 'Please check your internet connection and try again.'
+                );
+                return;
+            }
+            const serverStatus = res.data?.kycStatus;
+            if (serverStatus === 'PENDING') {
+                Alert.alert('Still waiting', 'Your KYC has not been reviewed yet. Please check again later.');
+            } else if (serverStatus === 'REJECTED') {
+                Alert.alert('KYC rejected', 'Your KYC was rejected. Please correct your details and submit again.');
+            }
+            // APPROVED: the store is updated and the app opens automatically.
         } finally {
             setChecking(false);
         }
@@ -109,7 +127,7 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
                     </View>
                     <View style={{ marginLeft: 10, flexShrink: 1 }}>
                         <Text style={styles.brand}>Naveen Chit Fund</Text>
-                        <Text style={styles.subBrand}>FOREMAN ONBOARDING</Text>
+                        <Text style={styles.subBrand}>{isForeman ? 'FOREMAN ONBOARDING' : 'MEMBER ONBOARDING'}</Text>
                     </View>
                 </View>
                 <TouchableOpacity onPress={onSignOut} activeOpacity={0.7} style={styles.signOutBtn}>
@@ -156,6 +174,11 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
                                     Checking for approval automatically...
                                 </Text>
                             </View>
+                            {lastChecked ? (
+                                <Text style={[typography.caption, styles.center, { color: theme.text.secondary, marginTop: 6 }]}>
+                                    Last checked: {lastChecked.toLocaleTimeString()}
+                                </Text>
+                            ) : null}
 
                             <Button
                                 title={checking ? 'Checking...' : 'Check approval status'}
@@ -175,7 +198,7 @@ export const ForemanKycGateScreen = ({ onSignOut }) => {
                                 Complete your KYC
                             </Text>
                             <Text style={[typography.bodyMedium, styles.center, { color: theme.text.secondary, marginTop: 6, marginBottom: 14 }]}>
-                                Foremen must be verified by the Super Admin before they can use the app. Fill in your details and submit.
+                                {isForeman ? 'Foremen' : 'Members'} must be verified by the Super Admin before they can use the app. Fill in your details and submit.
                             </Text>
 
                             {isRejected ? (

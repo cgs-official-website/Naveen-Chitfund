@@ -203,9 +203,9 @@ export const RootNavigator = () => {
     );
   }
 
-  // Foreman gate: until the Super Admin approves their KYC, a foreman only sees the
-  // KYC form (or the "waiting for approval" screen) - no Home / Explore / Auction tabs.
-  if (user?.id && isForeman && user.kyc_status !== 'VERIFIED') {
+  // KYC gate (foremen AND subscribers): until the Super Admin approves their KYC, the user only
+  // sees the KYC form (or the "waiting for approval" screen) - no Home / Explore / Auction tabs.
+  if (user?.id && user.kyc_status !== 'VERIFIED') {
     return (
       <ForemanKycGateScreen
         onSignOut={() => {
