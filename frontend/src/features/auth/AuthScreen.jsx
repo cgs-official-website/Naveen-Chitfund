@@ -106,8 +106,8 @@ export const AuthScreen = ({ onComplete }) => {
             serverUser.kycStatus === 'APPROVED'
               ? 'VERIFIED'
               : serverUser.kycStatus === 'PENDING'
-              ? 'PENDING'
-              : 'NOT_STARTED',
+                ? 'PENDING'
+                : serverUser.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_STARTED',
           is_nri: false,
           biometric_enabled: rememberMe,
         },
@@ -186,8 +186,8 @@ export const AuthScreen = ({ onComplete }) => {
             serverUser.kycStatus === 'APPROVED'
               ? 'VERIFIED'
               : serverUser.kycStatus === 'PENDING'
-              ? 'PENDING'
-              : 'NOT_STARTED',
+                ? 'PENDING'
+                : serverUser.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_STARTED',
           is_nri: false,
           biometric_enabled: rememberMe,
         },
@@ -299,8 +299,8 @@ export const AuthScreen = ({ onComplete }) => {
             serverUser.kycStatus === 'APPROVED'
               ? 'VERIFIED'
               : serverUser.kycStatus === 'PENDING'
-              ? 'PENDING'
-              : 'NOT_STARTED',
+                ? 'PENDING'
+                : serverUser.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_STARTED',
           is_nri: false,
           biometric_enabled: rememberMe,
         },
@@ -340,533 +340,533 @@ export const AuthScreen = ({ onComplete }) => {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
-        {/* Brand Header with Emblem */}
-        <View style={styles.brandHeader}>
-          <View style={[styles.logoContainer, { borderColor: theme.gold.accent }]}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={[typography.h1, { color: theme.text.primary, marginTop: 12 }]}>
-            Naveen Chit Fund
-          </Text>
-          <Text style={[typography.caption, { color: theme.gold.accent, letterSpacing: 2, fontWeight: '700' }]}>
-            GOVERNMENT REGULATED · TRUSTED SAVINGS
-          </Text>
-        </View>
-
-        {/* Tab Switcher: Sign In vs Create Account */}
-        <View style={[styles.tabSegment, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
-          <TouchableOpacity
-            onPress={() => {
-              setAuthMode('login');
-              setOtpSent(false);
-              setErrorMessage(null);
-            }}
-            style={[
-              styles.tabBtn,
-              authMode === 'login' && {
-                backgroundColor: theme.surface.card,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-                elevation: 2,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                typography.caption,
-                {
-                  color: authMode === 'login' ? theme.maroon.primary : theme.text.secondary,
-                  fontWeight: authMode === 'login' ? '700' : '500',
-                  fontSize: 13,
-                },
-              ]}
-            >
-              Sign In
+          {/* Brand Header with Emblem */}
+          <View style={styles.brandHeader}>
+            <View style={[styles.logoContainer, { borderColor: theme.gold.accent }]}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.brandLogo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={[typography.h1, { color: theme.text.primary, marginTop: 12 }]}>
+              Naveen Chit Fund
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              setAuthMode('register');
-              setOtpSent(false);
-              setErrorMessage(null);
-            }}
-            style={[
-              styles.tabBtn,
-              authMode === 'register' && {
-                backgroundColor: theme.surface.card,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-                elevation: 2,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                typography.caption,
-                {
-                  color: authMode === 'register' ? theme.maroon.primary : theme.text.secondary,
-                  fontWeight: authMode === 'register' ? '700' : '500',
-                  fontSize: 13,
-                },
-              ]}
-            >
-              Create Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-
-        {/* Error Banner */}
-        {errorMessage && (
-          <View style={[styles.errorBanner, { backgroundColor: theme.semantic.errorBg, borderColor: theme.semantic.error + '40' }]}>
-            <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '600' }]}>
-              {errorMessage}
+            <Text style={[typography.caption, { color: theme.gold.accent, letterSpacing: 2, fontWeight: '700' }]}>
+              GOVERNMENT REGULATED · TRUSTED SAVINGS
             </Text>
           </View>
-        )}
 
-        {/* Main Authentication Card */}
-        <Card style={styles.formCard}>
-          <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 4 }]}>
-            {authMode === 'login' ? 'Welcome Back' : 'Register New Account'}
-          </Text>
-          <Text style={[typography.caption, { color: theme.text.secondary, marginBottom: 16 }]}>
-            {authMethod === 'direct'
-              ? authMode === 'login'
-                ? 'Sign in directly without waiting for OTP SMS'
-                : 'Create your account instantly without waiting for OTP SMS'
-              : otpSent
-              ? `Enter 6-digit OTP sent to ${normalizePhone(phoneInput)}`
-              : authMode === 'login'
-              ? 'Sign in securely using 6-digit phone verification OTP'
-              : 'Join regulated chit groups with OTP phone verification'}
-          </Text>
-
-          {/* Registration & Login Type Selector: Without OTP vs OTP */}
-          <View style={[styles.methodSegment, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+          {/* Tab Switcher: Sign In vs Create Account */}
+          <View style={[styles.tabSegment, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
             <TouchableOpacity
               onPress={() => {
-                setAuthMethod('direct');
+                setAuthMode('login');
                 setOtpSent(false);
                 setErrorMessage(null);
               }}
               style={[
-                styles.methodBtn,
-                authMethod === 'direct' && {
+                styles.tabBtn,
+                authMode === 'login' && {
                   backgroundColor: theme.surface.card,
-                  borderColor: theme.gold.accent,
                   shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 4,
                   elevation: 2,
                 },
               ]}
             >
-              <Zap size={13} color={authMethod === 'direct' ? theme.maroon.primary : theme.text.muted} />
               <Text
                 style={[
                   typography.caption,
                   {
-                    color: authMethod === 'direct' ? theme.maroon.primary : theme.text.secondary,
-                    fontWeight: authMethod === 'direct' ? '700' : '500',
-                    fontSize: 11.5,
-                    marginLeft: 5,
+                    color: authMode === 'login' ? theme.maroon.primary : theme.text.secondary,
+                    fontWeight: authMode === 'login' ? '700' : '500',
+                    fontSize: 13,
                   },
                 ]}
               >
-                Without OTP (Direct)
+                Sign In
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => {
-                setAuthMethod('otp');
+                setAuthMode('register');
                 setOtpSent(false);
                 setErrorMessage(null);
               }}
               style={[
-                styles.methodBtn,
-                authMethod === 'otp' && {
+                styles.tabBtn,
+                authMode === 'register' && {
                   backgroundColor: theme.surface.card,
-                  borderColor: theme.gold.accent,
                   shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 4,
                   elevation: 2,
                 },
               ]}
             >
-              <KeyRound size={13} color={authMethod === 'otp' ? theme.maroon.primary : theme.text.muted} />
               <Text
                 style={[
                   typography.caption,
                   {
-                    color: authMethod === 'otp' ? theme.maroon.primary : theme.text.secondary,
-                    fontWeight: authMethod === 'otp' ? '700' : '500',
-                    fontSize: 11.5,
-                    marginLeft: 5,
+                    color: authMode === 'register' ? theme.maroon.primary : theme.text.secondary,
+                    fontWeight: authMode === 'register' ? '700' : '500',
+                    fontSize: 13,
                   },
                 ]}
               >
-                With OTP (SMS)
+                Create Account
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* METHOD 1: WITHOUT OTP (DIRECT) */}
-          {authMethod === 'direct' && (
-            <>
-              {authMode === 'register' && (
-                <>
-                  <Input
-                    label="FULL LEGAL NAME (AS PER PAN / AADHAAR)"
-                    placeholder="e.g. Anitha Kumar"
-                    value={regFullName}
-                    onChangeText={setRegFullName}
-                    leftIcon={User}
-                    autoCapitalize="words"
-                  />
 
-                  {/* Account Type */}
-                  <Text style={[typography.caption, styles.fieldLabel, { color: theme.text.secondary, marginTop: 14 }]}>
-                    ACCOUNT TYPE
-                  </Text>
-                  <View style={styles.roleSelectionRow}>
-                    <TouchableOpacity
-                      onPress={() => setRegRole('user')}
-                      style={[
-                        styles.roleCard,
-                        {
-                          backgroundColor: regRole === 'user' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
-                          borderColor: regRole === 'user' ? theme.maroon.primary : theme.surface.border,
-                        },
-                      ]}
-                    >
-                      <UserCheck size={18} color={regRole === 'user' ? theme.maroon.primary : theme.text.muted} />
-                      <Text style={[typography.caption, { color: regRole === 'user' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
-                        Subscriber
-                      </Text>
-                      <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
-                        Save & Bid in Chits
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => setRegRole('admin')}
-                      style={[
-                        styles.roleCard,
-                        {
-                          backgroundColor: regRole === 'admin' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
-                          borderColor: regRole === 'admin' ? theme.maroon.primary : theme.surface.border,
-                        },
-                      ]}
-                    >
-                      <Building size={18} color={regRole === 'admin' ? theme.maroon.primary : theme.text.muted} />
-                      <Text style={[typography.caption, { color: regRole === 'admin' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
-                        Foreman
-                      </Text>
-                      <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
-                        Compliance & Filing
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-
-              {/* Mobile Number Field */}
-              <Input
-                label="MOBILE NUMBER"
-                placeholder="Enter 10-digit number"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phoneInput}
-                onChangeText={setPhoneInput}
-                prefix="+91"
-                rightIcon={Smartphone}
-                clearable
-                containerStyle={{ marginTop: authMode === 'register' ? 6 : 0 }}
-              />
-
-              {/* DPDP 2023 Consent Checkbox for registration */}
-              {authMode === 'register' && (
-                <TouchableOpacity
-                  onPress={() => setAgreedToDPDP(!agreedToDPDP)}
-                  style={styles.consentRow}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      {
-                        backgroundColor: agreedToDPDP ? theme.maroon.primary : 'transparent',
-                        borderColor: agreedToDPDP ? theme.maroon.primary : theme.surface.border,
-                      },
-                    ]}
-                  >
-                    {agreedToDPDP && <CheckCircle2 size={13} color="#FFFFFF" />}
-                  </View>
-                  <Text style={[typography.caption, { color: theme.text.secondary, flex: 1, marginLeft: 10, lineHeight: 16 }]}>
-                    I consent to digital identity verification under DPDP Act 2023 and agree to Chit Funds Act 1982 bye-laws.
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Remember Session Row */}
-              <View style={styles.rememberRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Switch
-                    value={rememberMe}
-                    onValueChange={setRememberMe}
-                    trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-                    thumbColor="#FFFFFF"
-                  />
-                  <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
-                    Remember session on device
-                  </Text>
-                </View>
-              </View>
-
-              {/* Direct Submit Button */}
-              <Button
-                title={authMode === 'login' ? 'Sign In Directly' : 'Create Account'}
-                variant="primary"
-                loading={loading}
-                onPress={authMode === 'login' ? handleDirectLogin : handleDirectRegister}
-                icon={authMode === 'login' ? <ArrowRight size={18} color="#FFFFFF" /> : <CheckCircle2 size={18} color="#FFFFFF" />}
-                style={{ marginTop: 20 }}
-              />
-            </>
+          {/* Error Banner */}
+          {errorMessage && (
+            <View style={[styles.errorBanner, { backgroundColor: theme.semantic.errorBg, borderColor: theme.semantic.error + '40' }]}>
+              <Text style={[typography.caption, { color: theme.semantic.error, fontWeight: '600' }]}>
+                {errorMessage}
+              </Text>
+            </View>
           )}
 
-          {/* METHOD 2: WITH OTP (SMS) */}
-          {authMethod === 'otp' && (
-            <>
-              {/* Registration Extra Fields */}
-              {authMode === 'register' && !otpSent && (
-                <>
-                  <Input
-                    label="FULL LEGAL NAME (AS PER PAN / AADHAAR)"
-                    placeholder="e.g. Anitha Kumar"
-                    value={regFullName}
-                    onChangeText={setRegFullName}
-                    leftIcon={User}
-                    autoCapitalize="words"
-                  />
+          {/* Main Authentication Card */}
+          <Card style={styles.formCard}>
+            <Text style={[typography.h2, { color: theme.text.primary, marginBottom: 4 }]}>
+              {authMode === 'login' ? 'Welcome Back' : 'Register New Account'}
+            </Text>
+            <Text style={[typography.caption, { color: theme.text.secondary, marginBottom: 16 }]}>
+              {authMethod === 'direct'
+                ? authMode === 'login'
+                  ? 'Sign in directly without waiting for OTP SMS'
+                  : 'Create your account instantly without waiting for OTP SMS'
+                : otpSent
+                  ? `Enter 6-digit OTP sent to ${normalizePhone(phoneInput)}`
+                  : authMode === 'login'
+                    ? 'Sign in securely using 6-digit phone verification OTP'
+                    : 'Join regulated chit groups with OTP phone verification'}
+            </Text>
 
-                  {/* Account Type */}
-                  <Text style={[typography.caption, styles.fieldLabel, { color: theme.text.secondary, marginTop: 14 }]}>
-                    ACCOUNT TYPE
-                  </Text>
-                  <View style={styles.roleSelectionRow}>
-                    <TouchableOpacity
-                      onPress={() => setRegRole('user')}
-                      style={[
-                        styles.roleCard,
-                        {
-                          backgroundColor: regRole === 'user' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
-                          borderColor: regRole === 'user' ? theme.maroon.primary : theme.surface.border,
-                        },
-                      ]}
-                    >
-                      <UserCheck size={18} color={regRole === 'user' ? theme.maroon.primary : theme.text.muted} />
-                      <Text style={[typography.caption, { color: regRole === 'user' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
-                        Subscriber
-                      </Text>
-                      <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
-                        Save & Bid in Chits
-                      </Text>
-                    </TouchableOpacity>
+            {/* Registration & Login Type Selector: Without OTP vs OTP */}
+            <View style={[styles.methodSegment, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  setAuthMethod('direct');
+                  setOtpSent(false);
+                  setErrorMessage(null);
+                }}
+                style={[
+                  styles.methodBtn,
+                  authMethod === 'direct' && {
+                    backgroundColor: theme.surface.card,
+                    borderColor: theme.gold.accent,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  },
+                ]}
+              >
+                <Zap size={13} color={authMethod === 'direct' ? theme.maroon.primary : theme.text.muted} />
+                <Text
+                  style={[
+                    typography.caption,
+                    {
+                      color: authMethod === 'direct' ? theme.maroon.primary : theme.text.secondary,
+                      fontWeight: authMethod === 'direct' ? '700' : '500',
+                      fontSize: 11.5,
+                      marginLeft: 5,
+                    },
+                  ]}
+                >
+                  Without OTP (Direct)
+                </Text>
+              </TouchableOpacity>
 
-                    <TouchableOpacity
-                      onPress={() => setRegRole('admin')}
-                      style={[
-                        styles.roleCard,
-                        {
-                          backgroundColor: regRole === 'admin' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
-                          borderColor: regRole === 'admin' ? theme.maroon.primary : theme.surface.border,
-                        },
-                      ]}
-                    >
-                      <Building size={18} color={regRole === 'admin' ? theme.maroon.primary : theme.text.muted} />
-                      <Text style={[typography.caption, { color: regRole === 'admin' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
-                        Foreman
-                      </Text>
-                      <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
-                        Compliance & Filing
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setAuthMethod('otp');
+                  setOtpSent(false);
+                  setErrorMessage(null);
+                }}
+                style={[
+                  styles.methodBtn,
+                  authMethod === 'otp' && {
+                    backgroundColor: theme.surface.card,
+                    borderColor: theme.gold.accent,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  },
+                ]}
+              >
+                <KeyRound size={13} color={authMethod === 'otp' ? theme.maroon.primary : theme.text.muted} />
+                <Text
+                  style={[
+                    typography.caption,
+                    {
+                      color: authMethod === 'otp' ? theme.maroon.primary : theme.text.secondary,
+                      fontWeight: authMethod === 'otp' ? '700' : '500',
+                      fontSize: 11.5,
+                      marginLeft: 5,
+                    },
+                  ]}
+                >
+                  With OTP (SMS)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-              {/* Mobile Number Field (if OTP not yet sent) */}
-              {!otpSent ? (
-                <>
-                  <Input
-                    label="MOBILE NUMBER"
-                    placeholder="Enter 10-digit number"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    value={phoneInput}
-                    onChangeText={setPhoneInput}
-                    prefix="+91"
-                    rightIcon={Smartphone}
-                    clearable
-                    containerStyle={{ marginTop: authMode === 'register' ? 6 : 0 }}
-                  />
+            {/* METHOD 1: WITHOUT OTP (DIRECT) */}
+            {authMethod === 'direct' && (
+              <>
+                {authMode === 'register' && (
+                  <>
+                    <Input
+                      label="FULL LEGAL NAME (AS PER PAN / AADHAAR)"
+                      placeholder="e.g. Anitha Kumar"
+                      value={regFullName}
+                      onChangeText={setRegFullName}
+                      leftIcon={User}
+                      autoCapitalize="words"
+                    />
 
-                  {/* DPDP 2023 Consent Checkbox for registration */}
-                  {authMode === 'register' && (
-                    <TouchableOpacity
-                      onPress={() => setAgreedToDPDP(!agreedToDPDP)}
-                      style={styles.consentRow}
-                      activeOpacity={0.8}
-                    >
-                      <View
+                    {/* Account Type */}
+                    <Text style={[typography.caption, styles.fieldLabel, { color: theme.text.secondary, marginTop: 14 }]}>
+                      ACCOUNT TYPE
+                    </Text>
+                    <View style={styles.roleSelectionRow}>
+                      <TouchableOpacity
+                        onPress={() => setRegRole('user')}
                         style={[
-                          styles.checkbox,
+                          styles.roleCard,
                           {
-                            backgroundColor: agreedToDPDP ? theme.maroon.primary : 'transparent',
-                            borderColor: agreedToDPDP ? theme.maroon.primary : theme.surface.border,
+                            backgroundColor: regRole === 'user' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                            borderColor: regRole === 'user' ? theme.maroon.primary : theme.surface.border,
                           },
                         ]}
                       >
-                        {agreedToDPDP && <CheckCircle2 size={13} color="#FFFFFF" />}
-                      </View>
-                      <Text style={[typography.caption, { color: theme.text.secondary, flex: 1, marginLeft: 10, lineHeight: 16 }]}>
-                        I consent to digital identity verification under DPDP Act 2023 and agree to Chit Funds Act 1982 bye-laws.
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                        <UserCheck size={18} color={regRole === 'user' ? theme.maroon.primary : theme.text.muted} />
+                        <Text style={[typography.caption, { color: regRole === 'user' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                          Subscriber
+                        </Text>
+                        <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                          Save & Bid in Chits
+                        </Text>
+                      </TouchableOpacity>
 
-                  {/* Request OTP Button */}
-                  <Button
-                    title={authMode === 'login' ? 'Send Verification OTP' : 'Send Registration OTP'}
-                    variant="primary"
-                    loading={loading}
-                    onPress={handleRequestOtp}
-                    icon={<ArrowRight size={18} color="#FFFFFF" />}
-                    style={{ marginTop: 22 }}
-                  />
-                </>
-              ) : (
-                /* OTP Verification Step */
-                <>
-                  {/* Phone number change chip */}
-                  <View style={[styles.phoneChip, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
-                    <Smartphone size={14} color={theme.text.secondary} />
-                    <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700', marginLeft: 6 }]}>
-                      {normalizePhone(phoneInput)}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setOtpSent(false);
-                        setOtpCode('');
-                        setDebugOtp(null);
-                      }}
-                      style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' }}
-                    >
-                      <Edit3 size={12} color={theme.maroon.primary} />
-                      <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
-                        Edit
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Development OTP Banner */}
-                  {debugOtp && (
-                    <View style={[styles.devOtpCard, { backgroundColor: theme.gold.accent + '20', borderColor: theme.gold.accent + '50' }]}>
-                      <Text style={[typography.caption, { color: theme.text.primary }]}>
-                        Dev Mode Code: <Text style={{ fontWeight: '800', letterSpacing: 2 }}>{debugOtp}</Text>
-                      </Text>
-                      <TouchableOpacity onPress={() => setOtpCode(debugOtp)}>
-                        <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '800', marginLeft: 8 }]}>
-                          AUTO-FILL
+                      <TouchableOpacity
+                        onPress={() => setRegRole('admin')}
+                        style={[
+                          styles.roleCard,
+                          {
+                            backgroundColor: regRole === 'admin' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                            borderColor: regRole === 'admin' ? theme.maroon.primary : theme.surface.border,
+                          },
+                        ]}
+                      >
+                        <Building size={18} color={regRole === 'admin' ? theme.maroon.primary : theme.text.muted} />
+                        <Text style={[typography.caption, { color: regRole === 'admin' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                          Foreman
+                        </Text>
+                        <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                          Compliance & Filing
                         </Text>
                       </TouchableOpacity>
                     </View>
-                  )}
+                  </>
+                )}
 
-                  <Input
-                    label="6-DIGIT VERIFICATION CODE"
-                    placeholder="Enter 6-digit code"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={otpCode}
-                    onChangeText={setOtpCode}
-                    leftIcon={KeyRound}
-                    inputStyle={{ letterSpacing: 6, fontWeight: '700', fontSize: 18 }}
-                    containerStyle={{ marginTop: 10 }}
-                  />
+                {/* Mobile Number Field */}
+                <Input
+                  label="MOBILE NUMBER"
+                  placeholder="Enter 10-digit number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phoneInput}
+                  onChangeText={setPhoneInput}
+                  prefix="+91"
+                  rightIcon={Smartphone}
+                  clearable
+                  containerStyle={{ marginTop: authMode === 'register' ? 6 : 0 }}
+                />
 
-                  {/* Resend OTP Row */}
-                  <View style={styles.resendRow}>
-                    {resendCountdown > 0 ? (
-                      <Text style={[typography.caption, { color: theme.text.muted }]}>
-                        Resend code in {resendCountdown}s
-                      </Text>
-                    ) : (
-                      <TouchableOpacity onPress={handleRequestOtp} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <RefreshCw size={12} color={theme.maroon.primary} />
-                        <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
-                          Resend OTP
+                {/* DPDP 2023 Consent Checkbox for registration */}
+                {authMode === 'register' && (
+                  <TouchableOpacity
+                    onPress={() => setAgreedToDPDP(!agreedToDPDP)}
+                    style={styles.consentRow}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        {
+                          backgroundColor: agreedToDPDP ? theme.maroon.primary : 'transparent',
+                          borderColor: agreedToDPDP ? theme.maroon.primary : theme.surface.border,
+                        },
+                      ]}
+                    >
+                      {agreedToDPDP && <CheckCircle2 size={13} color="#FFFFFF" />}
+                    </View>
+                    <Text style={[typography.caption, { color: theme.text.secondary, flex: 1, marginLeft: 10, lineHeight: 16 }]}>
+                      I consent to digital identity verification under DPDP Act 2023 and agree to Chit Funds Act 1982 bye-laws.
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Remember Session Row */}
+                <View style={styles.rememberRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Switch
+                      value={rememberMe}
+                      onValueChange={setRememberMe}
+                      trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
+                      thumbColor="#FFFFFF"
+                    />
+                    <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
+                      Remember session on device
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Direct Submit Button */}
+                <Button
+                  title={authMode === 'login' ? 'Sign In Directly' : 'Create Account'}
+                  variant="primary"
+                  loading={loading}
+                  onPress={authMode === 'login' ? handleDirectLogin : handleDirectRegister}
+                  icon={authMode === 'login' ? <ArrowRight size={18} color="#FFFFFF" /> : <CheckCircle2 size={18} color="#FFFFFF" />}
+                  style={{ marginTop: 20 }}
+                />
+              </>
+            )}
+
+            {/* METHOD 2: WITH OTP (SMS) */}
+            {authMethod === 'otp' && (
+              <>
+                {/* Registration Extra Fields */}
+                {authMode === 'register' && !otpSent && (
+                  <>
+                    <Input
+                      label="FULL LEGAL NAME (AS PER PAN / AADHAAR)"
+                      placeholder="e.g. Anitha Kumar"
+                      value={regFullName}
+                      onChangeText={setRegFullName}
+                      leftIcon={User}
+                      autoCapitalize="words"
+                    />
+
+                    {/* Account Type */}
+                    <Text style={[typography.caption, styles.fieldLabel, { color: theme.text.secondary, marginTop: 14 }]}>
+                      ACCOUNT TYPE
+                    </Text>
+                    <View style={styles.roleSelectionRow}>
+                      <TouchableOpacity
+                        onPress={() => setRegRole('user')}
+                        style={[
+                          styles.roleCard,
+                          {
+                            backgroundColor: regRole === 'user' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                            borderColor: regRole === 'user' ? theme.maroon.primary : theme.surface.border,
+                          },
+                        ]}
+                      >
+                        <UserCheck size={18} color={regRole === 'user' ? theme.maroon.primary : theme.text.muted} />
+                        <Text style={[typography.caption, { color: regRole === 'user' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                          Subscriber
+                        </Text>
+                        <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                          Save & Bid in Chits
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => setRegRole('admin')}
+                        style={[
+                          styles.roleCard,
+                          {
+                            backgroundColor: regRole === 'admin' ? theme.maroon.primary + '18' : theme.surface.cardSubtle,
+                            borderColor: regRole === 'admin' ? theme.maroon.primary : theme.surface.border,
+                          },
+                        ]}
+                      >
+                        <Building size={18} color={regRole === 'admin' ? theme.maroon.primary : theme.text.muted} />
+                        <Text style={[typography.caption, { color: regRole === 'admin' ? theme.maroon.primary : theme.text.primary, fontWeight: '700', marginTop: 4 }]}>
+                          Foreman
+                        </Text>
+                        <Text style={[typography.caption, { color: theme.text.muted, fontSize: 9, textAlign: 'center', marginTop: 2 }]}>
+                          Compliance & Filing
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+
+                {/* Mobile Number Field (if OTP not yet sent) */}
+                {!otpSent ? (
+                  <>
+                    <Input
+                      label="MOBILE NUMBER"
+                      placeholder="Enter 10-digit number"
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      value={phoneInput}
+                      onChangeText={setPhoneInput}
+                      prefix="+91"
+                      rightIcon={Smartphone}
+                      clearable
+                      containerStyle={{ marginTop: authMode === 'register' ? 6 : 0 }}
+                    />
+
+                    {/* DPDP 2023 Consent Checkbox for registration */}
+                    {authMode === 'register' && (
+                      <TouchableOpacity
+                        onPress={() => setAgreedToDPDP(!agreedToDPDP)}
+                        style={styles.consentRow}
+                        activeOpacity={0.8}
+                      >
+                        <View
+                          style={[
+                            styles.checkbox,
+                            {
+                              backgroundColor: agreedToDPDP ? theme.maroon.primary : 'transparent',
+                              borderColor: agreedToDPDP ? theme.maroon.primary : theme.surface.border,
+                            },
+                          ]}
+                        >
+                          {agreedToDPDP && <CheckCircle2 size={13} color="#FFFFFF" />}
+                        </View>
+                        <Text style={[typography.caption, { color: theme.text.secondary, flex: 1, marginLeft: 10, lineHeight: 16 }]}>
+                          I consent to digital identity verification under DPDP Act 2023 and agree to Chit Funds Act 1982 bye-laws.
                         </Text>
                       </TouchableOpacity>
                     )}
-                  </View>
 
-                  {/* Biometric Toggle */}
-                  <View style={styles.rememberRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Switch
-                        value={rememberMe}
-                        onValueChange={setRememberMe}
-                        trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
-                        thumbColor="#FFFFFF"
-                      />
-                      <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
-                        Remember session on device
+                    {/* Request OTP Button */}
+                    <Button
+                      title={authMode === 'login' ? 'Send Verification OTP' : 'Send Registration OTP'}
+                      variant="primary"
+                      loading={loading}
+                      onPress={handleRequestOtp}
+                      icon={<ArrowRight size={18} color="#FFFFFF" />}
+                      style={{ marginTop: 22 }}
+                    />
+                  </>
+                ) : (
+                  /* OTP Verification Step */
+                  <>
+                    {/* Phone number change chip */}
+                    <View style={[styles.phoneChip, { backgroundColor: theme.surface.cardSubtle, borderColor: theme.surface.border }]}>
+                      <Smartphone size={14} color={theme.text.secondary} />
+                      <Text style={[typography.caption, { color: theme.text.primary, fontWeight: '700', marginLeft: 6 }]}>
+                        {normalizePhone(phoneInput)}
                       </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setOtpSent(false);
+                          setOtpCode('');
+                          setDebugOtp(null);
+                        }}
+                        style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Edit3 size={12} color={theme.maroon.primary} />
+                        <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
+                          Edit
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  </View>
 
-                  {/* Verify Button */}
-                  <Button
-                    title={authMode === 'login' ? 'Verify & Sign In' : 'Verify & Complete Registration'}
-                    variant="primary"
-                    loading={loading}
-                    onPress={handleVerifyOtp}
-                    icon={<CheckCircle2 size={18} color="#FFFFFF" />}
-                    style={{ marginTop: 20 }}
-                  />
-                </>
-              )}
-            </>
-          )}
-        </Card>
+                    {/* Development OTP Banner */}
+                    {debugOtp && (
+                      <View style={[styles.devOtpCard, { backgroundColor: theme.gold.accent + '20', borderColor: theme.gold.accent + '50' }]}>
+                        <Text style={[typography.caption, { color: theme.text.primary }]}>
+                          Dev Mode Code: <Text style={{ fontWeight: '800', letterSpacing: 2 }}>{debugOtp}</Text>
+                        </Text>
+                        <TouchableOpacity onPress={() => setOtpCode(debugOtp)}>
+                          <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '800', marginLeft: 8 }]}>
+                            AUTO-FILL
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
-        {/* Regulatory Footer Stamp */}
-        <View style={styles.footerStamp}>
-          <ShieldCheck size={16} color={theme.gold.accent} />
-          <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
-            Protected by Chit Funds Act, 1982 & DPDP Act, 2023
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  </View>
-);
+                    <Input
+                      label="6-DIGIT VERIFICATION CODE"
+                      placeholder="Enter 6-digit code"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      value={otpCode}
+                      onChangeText={setOtpCode}
+                      leftIcon={KeyRound}
+                      inputStyle={{ letterSpacing: 6, fontWeight: '700', fontSize: 18 }}
+                      containerStyle={{ marginTop: 10 }}
+                    />
+
+                    {/* Resend OTP Row */}
+                    <View style={styles.resendRow}>
+                      {resendCountdown > 0 ? (
+                        <Text style={[typography.caption, { color: theme.text.muted }]}>
+                          Resend code in {resendCountdown}s
+                        </Text>
+                      ) : (
+                        <TouchableOpacity onPress={handleRequestOtp} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <RefreshCw size={12} color={theme.maroon.primary} />
+                          <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700', marginLeft: 4 }]}>
+                            Resend OTP
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Biometric Toggle */}
+                    <View style={styles.rememberRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Switch
+                          value={rememberMe}
+                          onValueChange={setRememberMe}
+                          trackColor={{ false: theme.surface.border, true: theme.maroon.primary }}
+                          thumbColor="#FFFFFF"
+                        />
+                        <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
+                          Remember session on device
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Verify Button */}
+                    <Button
+                      title={authMode === 'login' ? 'Verify & Sign In' : 'Verify & Complete Registration'}
+                      variant="primary"
+                      loading={loading}
+                      onPress={handleVerifyOtp}
+                      icon={<CheckCircle2 size={18} color="#FFFFFF" />}
+                      style={{ marginTop: 20 }}
+                    />
+                  </>
+                )}
+              </>
+            )}
+          </Card>
+
+          {/* Regulatory Footer Stamp */}
+          <View style={styles.footerStamp}>
+            <ShieldCheck size={16} color={theme.gold.accent} />
+            <Text style={[typography.caption, { color: theme.text.secondary, marginLeft: 8 }]}>
+              Protected by Chit Funds Act, 1982 & DPDP Act, 2023
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({

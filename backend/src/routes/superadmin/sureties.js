@@ -48,7 +48,7 @@ router.get(
               ca.winning_bid_pct,
               ca.month_number AS auction_month,
               d.status AS disbursal_status,
-              d.utr_reference
+              d.bank_reference_utr AS utr_reference
        FROM sureties s
        JOIN subscriptions sub ON sub.id = s.subscription_id
        JOIN users u ON u.id = sub.user_id
@@ -68,6 +68,9 @@ router.get(
       const netPayoutPaise = grossPaise - discountPaise;
       return {
         ...r,
+        // sureties.status can only be PENDING/SUBMITTED/APPROVED/REJECTED (DB constraint),
+        // so "paid out" is derived from the disbursal record.
+        status: r.disbursal_status === 'DISBURSED' ? 'DISBURSED' : r.status,
         netPayoutAmount: toRupees(netPayoutPaise),
         netPayoutPaise,
         discountAmount: toRupees(discountPaise),
@@ -137,15 +140,20 @@ router.get(
     const discountPaise = Math.round((grossPaise * winPct) / 100);
     const netPayoutPaise = grossPaise - discountPaise;
 
+    const disbursal = dRes.rows[0]
+      ? { ...dRes.rows[0], utr_reference: dRes.rows[0].bank_reference_utr }
+      : null;
+
     res.json({
       success: true,
       data: {
         ...s,
+        status: disbursal?.status === 'DISBURSED' ? 'DISBURSED' : s.status,
         netPayoutAmount: toRupees(netPayoutPaise),
         discountAmount: toRupees(discountPaise),
         guarantors: gRes.rows,
         documents: docsRes.rows,
-        disbursal: dRes.rows[0] || null,
+        disbursal,
       },
     });
   })
@@ -169,12 +177,17 @@ router.post(
     );
     if (!suretyRes.rows.length) throw new ApiError(404, 'Surety not found');
     const item = suretyRes.rows[0];
+    // NOTE: sureties.reviewed_by is a FK to users(id); a super admin lives in super_admins,
+    // so the reviewer is recorded in the audit event (metadata.approvedBy) instead.
+    if (item.status !== 'SUBMITTED') {
+      throw new ApiError(400, `Only SUBMITTED surety packages can be approved (current status: ${item.status})`);
+    }
 
     const { rows } = await query(
       `UPDATE sureties
-       SET status = 'APPROVED', reviewed_by = $1, reviewed_at = now(), updated_at = now()
-       WHERE id = $2 RETURNING *`,
-      [req.superAdmin.id, id]
+       SET status = 'APPROVED', reviewed_at = now(), updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [id]
     );
 
     // Initialize Disbursal record in PENDING state
@@ -241,6 +254,17 @@ router.post(
     if (!suretyRes.rows.length) throw new ApiError(404, 'Surety record not found');
     const s = suretyRes.rows[0];
 
+    // Statutory guards (same rules as the mobile app route)
+    if (s.subscriber_status !== 'SB') {
+      throw new ApiError(400, `Disbursal permitted only for Successful Bidders (SB). Current status: '${s.subscriber_status}'.`);
+    }
+    if (s.status !== 'APPROVED') {
+      throw new ApiError(400, `Surety must be APPROVED before disbursal (current status: ${s.status}).`);
+    }
+    if (!s.act_auction_id) {
+      throw new ApiError(400, 'This surety is not linked to a won auction.');
+    }
+
     const grossPaise = toPaise(Number(s.chit_amount));
     const winPct = Number(s.winning_bid_pct || 0);
     const discountPaise = Math.round((grossPaise * winPct) / 100);
@@ -257,24 +281,19 @@ router.post(
         [s.sub_id]
       );
 
-      // 2. Mark surety DISBURSED
-      await client.query(
-        `UPDATE sureties
-         SET status = 'DISBURSED', updated_at = now()
-         WHERE id = $1`,
-        [id]
-      );
+      // 2. (Surety stays APPROVED - the DB only allows PENDING/SUBMITTED/APPROVED/REJECTED.
+      //     The paid-out state lives on the disbursal record below.)
 
-      // 3. Upsert Disbursals record as COMPLETED
+      // 3. Upsert Disbursals record as DISBURSED
       const disbursalRes = await client.query(
         `INSERT INTO disbursals (
            subscription_id, auction_id, surety_id, gross_amount_paise, discount_amount_paise,
            foreman_commission_paise, net_payout_paise, payment_mode, bank_account_number, bank_ifsc,
-           bank_beneficiary_name, utr_reference, status, disbursed_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'COMPLETED', now())
+           bank_beneficiary_name, bank_reference_utr, status, disbursed_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'DISBURSED', now())
          ON CONFLICT (auction_id) DO UPDATE
-         SET status = 'COMPLETED',
-             utr_reference = EXCLUDED.utr_reference,
+         SET status = 'DISBURSED',
+             bank_reference_utr = EXCLUDED.bank_reference_utr,
              bank_account_number = EXCLUDED.bank_account_number,
              bank_ifsc = EXCLUDED.bank_ifsc,
              bank_beneficiary_name = EXCLUDED.bank_beneficiary_name,

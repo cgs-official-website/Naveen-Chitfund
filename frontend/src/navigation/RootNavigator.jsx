@@ -29,6 +29,7 @@ import { SuretyScreen } from '../features/surety/SuretyScreen';
 import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { ForemanDashboardScreen } from '../features/foreman/ForemanDashboardScreen';
+import { ForemanKycGateScreen } from '../features/foreman/ForemanKycGateScreen';
 import { AuthScreen } from '../features/auth/AuthScreen';
 import { OfflineBanner } from '../core/components/OfflineBanner';
 
@@ -79,8 +80,8 @@ export const RootNavigator = () => {
                   u.kycStatus === 'APPROVED'
                     ? 'VERIFIED'
                     : u.kycStatus === 'PENDING'
-                    ? 'PENDING'
-                    : 'NOT_STARTED',
+                      ? 'PENDING'
+                      : u.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_STARTED',
                 is_nri: false,
                 biometric_enabled: true,
               },
@@ -202,6 +203,29 @@ export const RootNavigator = () => {
     );
   }
 
+  // Foreman gate: until the Super Admin approves their KYC, a foreman only sees the
+  // KYC form (or the "waiting for approval" screen) - no Home / Explore / Auction tabs.
+  if (user?.id && isForeman && user.kyc_status !== 'VERIFIED') {
+    return (
+      <ForemanKycGateScreen
+        onSignOut={() => {
+          Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Sign Out',
+              style: 'destructive',
+              onPress: async () => {
+                await setAuthToken(null);
+                logout();
+                setAppStage('auth');
+              },
+            },
+          ]);
+        }}
+      />
+    );
+  }
+
   const navItems = [
     { key: 'home', label: 'Home', icon: Home },
     { key: 'discovery', label: 'Explore', icon: Compass },
@@ -241,13 +265,13 @@ export const RootNavigator = () => {
               <View style={styles.masterPane}>
                 <ChitDiscoveryScreen
                   onSelectGroup={(id) => setSelectedChitGroupId(id)}
-                  onOpenDocs={() => {}}
+                  onOpenDocs={() => { }}
                 />
               </View>
               <View style={[styles.detailPane, { borderLeftColor: theme.surface.border }]}>
                 <ChitDetailScreen
                   groupId={selectedChitGroupId}
-                  onBack={() => {}}
+                  onBack={() => { }}
                   onNavigateToAuction={() => setCurrentTab('auction')}
                 />
               </View>
@@ -305,10 +329,10 @@ export const RootNavigator = () => {
         return (
           <HomeScreen
             onNavigateToAuction={() => setCurrentTab('auction')}
-            onNavigateToChitDetail={() => {}}
-            onNavigateToPayments={() => {}}
-            onNavigateToDiscovery={() => {}}
-            onOpenDocs={() => {}}
+            onNavigateToChitDetail={() => { }}
+            onNavigateToPayments={() => { }}
+            onNavigateToDiscovery={() => { }}
+            onOpenDocs={() => { }}
           />
         );
     }
@@ -586,8 +610,8 @@ export const RootNavigator = () => {
                       isSelected
                         ? theme.maroon.primary
                         : isDark
-                        ? '#A89280'
-                        : '#7A6B63'
+                          ? '#A89280'
+                          : '#7A6B63'
                     }
                   />
                 </View>
@@ -598,8 +622,8 @@ export const RootNavigator = () => {
                       color: isSelected
                         ? theme.maroon.primary
                         : isDark
-                        ? '#8A7A70'
-                        : '#8A7A70',
+                          ? '#8A7A70'
+                          : '#8A7A70',
                       fontWeight: isSelected ? '800' : '500',
                       fontSize: 10.5,
                       marginTop: 2,

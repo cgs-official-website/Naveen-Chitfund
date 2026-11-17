@@ -7,9 +7,23 @@ import { validateBody, getPagination } from '../../utils/validate.js';
 
 const router = express.Router();
 
+// Normalise an Indian mobile number to the canonical "+91XXXXXXXXXX" form.
+// Accepts: 9876543210, 09876543210, 919876543210, +919876543210 (spaces/dashes ignored).
+// Returns null when the value is not a valid 10-digit mobile number.
+// The mobile app also logs in with "+91XXXXXXXXXX", so storing this exact form
+// keeps a foreman created here matched to the same account when they log in.
+const normalizeIndianMobile = (raw) => {
+  const cleaned = String(raw ?? '').replace(/[\s\-()]/g, '');
+  const match = cleaned.match(/^(?:\+91|91|0)?([0-9]{10})$/);
+  return match ? `+91${match[1]}` : null;
+};
+
 const createForemanSchema = z.object({
-  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  phone: z.string().regex(/^\+?[0-9]{10,15}$/, 'Invalid phone number format'),
+  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(100, 'Full name is too long'),
+  phone: z
+    .string()
+    .transform((value) => normalizeIndianMobile(value))
+    .refine((value) => value !== null, 'Enter a valid 10-digit mobile number'),
 });
 
 const patchForemanSchema = z.object({
@@ -73,7 +87,7 @@ router.post(
 
     const { rows } = await query(
       `INSERT INTO users (full_name, phone, role, kyc_status)
-       VALUES ($1, $2, 'admin', 'APPROVED')
+       VALUES ($1, $2, 'admin', 'NOT_SUBMITTED')
        RETURNING *`,
       [fullName, phone]
     );

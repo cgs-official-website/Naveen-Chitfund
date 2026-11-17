@@ -162,7 +162,7 @@ export interface User {
   email?: string;
   pan_number?: string;
   role: UserRole;
-  kyc_status: 'NOT_STARTED' | 'PENDING' | 'VERIFIED';
+  kyc_status: 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   is_nri: boolean;
   biometric_enabled: boolean;
 }
@@ -487,7 +487,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       dpdpConsents: { ...state.dpdpConsents, [key]: value },
     }));
-    apiClient.post('/compliance/dpdp/consent', { purpose: key, consented: value }).catch(() => {});
+    apiClient.post('/compliance/dpdp/consent', { purpose: key, consented: value }).catch(() => { });
   },
   toggleBiometric: () =>
     set((state) => ({
@@ -637,9 +637,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.availableGroups.length > 0
           ? state.availableGroups
           : await apiClient
-              .get('/chit-groups')
-              .then((r) => r.data?.data?.items || [])
-              .catch(() => []);
+            .get('/chit-groups')
+            .then((r) => r.data?.data?.items || [])
+            .catch(() => []);
 
       for (const group of available) {
         try {
@@ -861,7 +861,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const ticket = Number(bidData.ticketNumber || 0);
     const isSelf = Boolean(
       bidData.subscriptionId &&
-        state.activeChits.some((c) => c.id === bidData.subscriptionId)
+      state.activeChits.some((c) => c.id === bidData.subscriptionId)
     );
 
     // Skip duplicate self bid
@@ -1178,8 +1178,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             u.kycStatus === 'APPROVED' || u.kycStatus === 'VERIFIED'
               ? 'VERIFIED'
               : u.kycStatus === 'PENDING'
-              ? 'PENDING'
-              : 'NOT_STARTED',
+                ? 'PENDING'
+                : u.kycStatus === 'REJECTED' ? 'REJECTED' : 'NOT_STARTED',
           is_nri: false,
           biometric_enabled: get().user?.biometric_enabled ?? false,
         };

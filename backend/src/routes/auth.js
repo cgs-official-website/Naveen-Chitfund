@@ -25,6 +25,32 @@ const otpVerifyLimiter = rateLimit({
   message: { success: false, error: 'Too many verification attempts, try again later' },
 });
 
+
+// ---- Phone-number matching -------------------------------------------------
+// The app always sends +91XXXXXXXXXX, but older / admin-created accounts may be
+// stored as XXXXXXXXXX or 91XXXXXXXXXX. Match all three so the same person never
+// ends up with two accounts (and never gets "No account found" for a real one).
+const toCanonicalPhone = (phone) => {
+  const cleaned = String(phone || '').replace(/[\s\-()]/g, '');
+  const m = cleaned.match(/^(?:\+91|91|0)?([0-9]{10})$/);
+  return m ? `+91${m[1]}` : String(phone || '');
+};
+
+const phoneVariants = (phone) => {
+  const canonical = toCanonicalPhone(phone);
+  if (!/^\+91[0-9]{10}$/.test(canonical)) return [String(phone)];
+  const ten = canonical.slice(3);
+  return [canonical, ten, `91${ten}`];
+};
+
+const findUserByPhone = async (phone) => {
+  const { rows } = await query(
+    'SELECT * FROM users WHERE phone = ANY($1::text[]) ORDER BY created_at ASC LIMIT 1',
+    [phoneVariants(phone)]
+  );
+  return rows[0];
+};
+
 const phoneSchema = z.object({
   phone: z.string().regex(/^\+?[0-9]{10,15}$/, 'Invalid phone number'),
 });
@@ -102,15 +128,14 @@ router.post(
 
     await query('UPDATE otp_codes SET consumed = true WHERE id = $1', [rows[0].id]);
 
-    let userResult = await query('SELECT * FROM users WHERE phone = $1', [phone]);
-    let user = userResult.rows[0];
+    let user = await findUserByPhone(phone);
 
     if (!user) {
       const assignedRole = role === 'admin' ? 'admin' : 'user';
       const insert = await query(
         `INSERT INTO users (full_name, phone, role)
          VALUES ($1, $2, $3) RETURNING *`,
-        [fullName ? fullName.trim() : 'New Subscriber', phone, assignedRole]
+        [fullName ? fullName.trim() : 'New Subscriber', toCanonicalPhone(phone), assignedRole]
       );
       user = insert.rows[0];
     } else if (fullName && user.full_name === 'New Subscriber') {
@@ -147,21 +172,20 @@ router.post(
   asyncHandler(async (req, res) => {
     const { phone, fullName, role } = req.body;
 
-    let userResult = await query('SELECT * FROM users WHERE phone = $1', [phone]);
-    let user = userResult.rows[0];
+    let user = await findUserByPhone(phone);
 
     if (!user) {
       const assignedRole = role === 'admin' ? 'admin' : 'user';
       const insert = await query(
         `INSERT INTO users (full_name, phone, role)
          VALUES ($1, $2, $3) RETURNING *`,
-        [fullName.trim(), phone, assignedRole]
+        [fullName.trim(), toCanonicalPhone(phone), assignedRole]
       );
       user = insert.rows[0];
     } else {
       const update = await query(
-        `UPDATE users SET full_name = $1, role = COALESCE($2, role) WHERE id = $3 RETURNING *`,
-        [fullName.trim(), role || user.role, user.id]
+        `UPDATE users SET full_name = $1, role = $2 WHERE id = $3 RETURNING *`,
+        [fullName.trim(), user.role, user.id]
       );
       user = update.rows[0];
     }
@@ -192,8 +216,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { phone } = req.body;
 
-    const userResult = await query('SELECT * FROM users WHERE phone = $1', [phone]);
-    const user = userResult.rows[0];
+    const user = await findUserByPhone(phone);
 
     if (!user) {
       throw new ApiError(404, 'No account found with this mobile number. Please register first.');

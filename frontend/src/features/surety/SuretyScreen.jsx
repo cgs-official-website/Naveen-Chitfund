@@ -225,8 +225,8 @@ export const SuretyScreen = () => {
     suretyDocuments && suretyDocuments.length > 0
       ? suretyDocuments
       : (claim?.surety?.documents && claim.surety.documents.length > 0)
-      ? claim.surety.documents
-      : [];
+        ? claim.surety.documents
+        : [];
 
   return (
     <ScrollView
@@ -390,8 +390,8 @@ export const SuretyScreen = () => {
                     backgroundColor: isApproved
                       ? theme.semantic.success
                       : isSubmitted
-                      ? theme.gold.accent
-                      : theme.surface.border,
+                        ? theme.gold.accent
+                        : theme.surface.border,
                   },
                 ]}
               >
@@ -417,8 +417,8 @@ export const SuretyScreen = () => {
                   {isApproved
                     ? 'Sureties Approved by Foreman'
                     : isSubmitted
-                    ? 'Awaiting Foreman Signature & Minutes Filing'
-                    : 'Pending Surety Submission'}
+                      ? 'Awaiting Foreman Signature & Minutes Filing'
+                      : 'Pending Surety Submission'}
                 </Text>
               </View>
             </View>
@@ -438,8 +438,8 @@ export const SuretyScreen = () => {
                     backgroundColor: isPrized
                       ? theme.semantic.success
                       : isApproved
-                      ? theme.gold.accent
-                      : theme.surface.border,
+                        ? theme.gold.accent
+                        : theme.surface.border,
                   },
                 ]}
               >
@@ -465,8 +465,8 @@ export const SuretyScreen = () => {
                   {isPrized
                     ? 'Disbursal Credited via RTGS · Status: Prized Subscriber (PS)'
                     : isApproved
-                    ? 'Ready for RTGS Disbursal Transfer'
-                    : 'Scheduled upon Foreman approval'}
+                      ? 'Ready for RTGS Disbursal Transfer'
+                      : 'Scheduled upon Foreman approval'}
                 </Text>
               </View>
             </View>
@@ -495,12 +495,12 @@ export const SuretyScreen = () => {
 
           <Card style={styles.sectionCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[typography.h3, { color: theme.text.primary }]}>
+              <Text style={[typography.h3, { color: theme.text.primary, flex: 1, flexShrink: 1, marginRight: 10 }]}>
                 Co-Guarantor Verification (Section 31)
               </Text>
               <TouchableOpacity
                 onPress={() => setShowAddGuarantorModal(true)}
-                style={{ paddingVertical: 2, paddingHorizontal: 8 }}
+                style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: theme.maroon.primary, flexShrink: 0 }}
               >
                 <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>
                   + Add Guarantor
@@ -537,9 +537,9 @@ export const SuretyScreen = () => {
           {/* Statutory Documents Card (Cloudinary Storage) */}
           <Card style={styles.sectionCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, marginRight: 10 }}>
                 <UploadCloud size={18} color={theme.maroon.primary} />
-                <Text style={[typography.h3, { color: theme.text.primary, marginLeft: 8 }]}>
+                <Text style={[typography.h3, { color: theme.text.primary, marginLeft: 8, flex: 1, flexShrink: 1 }]}>
                   Guarantor & Collateral Documents
                 </Text>
               </View>
@@ -550,7 +550,7 @@ export const SuretyScreen = () => {
                   setNewDocGuarantorId(claim?.surety?.guarantors?.[0]?.id || '');
                   setShowAddDocModal(true);
                 }}
-                style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+                style={{ paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: theme.maroon.primary, flexShrink: 0 }}
               >
                 <Text style={[typography.caption, { color: theme.maroon.primary, fontWeight: '700' }]}>
                   + Upload Document
@@ -604,8 +604,8 @@ export const SuretyScreen = () => {
                               backgroundColor: isDocVerified
                                 ? theme.semantic.success
                                 : isDocRejected
-                                ? theme.semantic.error
-                                : theme.gold.accent,
+                                  ? theme.semantic.error
+                                  : theme.gold.accent,
                             },
                           ]}
                         />
@@ -616,8 +616,8 @@ export const SuretyScreen = () => {
                               color: isDocVerified
                                 ? theme.semantic.success
                                 : isDocRejected
-                                ? theme.semantic.error
-                                : theme.text.secondary,
+                                  ? theme.semantic.error
+                                  : theme.text.secondary,
                               fontSize: 10,
                               fontWeight: '600',
                               marginLeft: 4,
@@ -1253,4 +1253,3 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 });
-

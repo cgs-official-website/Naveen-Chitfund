@@ -91,7 +91,8 @@ router.patch(
          full_name = COALESCE($1, full_name),
          email = COALESCE($2, email),
          pan_number = COALESCE($3, pan_number),
-         kyc_status = CASE WHEN $3 IS NOT NULL AND kyc_status = 'NOT_SUBMITTED' THEN 'PENDING' ELSE kyc_status END
+         kyc_status = CASE WHEN $3 IS NOT NULL AND kyc_status IN ('NOT_SUBMITTED', 'REJECTED') THEN 'PENDING' ELSE kyc_status END,
+         updated_at = now()
        WHERE id = $4 RETURNING *`,
       [fullName, email, panNumber, req.user.userId]
     );
